@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import plotly.express as px
 
 # =====================================================
 # CONFIGURACIÓN STREAMLIT
@@ -175,11 +176,76 @@ c4.metric("Cumplimiento Promedio", f"{obj_resumen['cumplimiento_%'].mean():.1f}%
 # TABLA ESTRATÉGICA
 # =====================================================
 st.header("🎯 Cumplimiento Estratégico por Objetivo")
-
 st.dataframe(
     obj_resumen.sort_values("cumplimiento_%", ascending=False),
     use_container_width=True
 )
+
+# =====================================================
+# GRÁFICAS INTERACTIVAS
+# =====================================================
+st.header("📈 Análisis Visual del Cumplimiento Estratégico")
+
+# 1️⃣ Conteo de objetivos por estado
+fig1 = px.bar(
+    obj_resumen,
+    x="estado_ejecutivo",
+    y="meses_reportados",
+    color="estado_ejecutivo",
+    color_discrete_map={
+        "CUMPLIDO": "green",
+        "EN SEGUIMIENTO": "yellow",
+        "RIESGO": "red",
+        "CRÍTICO": "darkred",
+        "NO SUBIDO": "purple"
+    },
+    text="meses_reportados",
+    title="Objetivos por Estado Ejecutivo"
+)
+fig1.update_layout(yaxis_title="Objetivos", xaxis_title="Estado")
+st.plotly_chart(fig1, use_container_width=True)
+
+# 2️⃣ Heatmap de cumplimiento por objetivo y mes
+heat_df = obj_long.pivot_table(
+    index="Objetivo",
+    columns="Mes",
+    values="valor",
+    fill_value=0
+)
+
+fig2 = px.imshow(
+    heat_df,
+    labels=dict(x="Mes", y="Objetivo", color="Valor"),
+    color_continuous_scale=["red","yellow","green"],
+    title="Heatmap de Cumplimiento Mensual por Objetivo"
+)
+st.plotly_chart(fig2, use_container_width=True)
+
+# 3️⃣ Cumplimiento promedio mensual
+cum_mensual = obj_long.groupby("Mes")["valor"].mean().reindex(MESES)
+
+fig3 = px.line(
+    cum_mensual,
+    y="valor",
+    x=cum_mensual.index,
+    title="Cumplimiento Promedio por Mes",
+    markers=True
+)
+fig3.update_yaxes(range=[0,1], tickformat=".0%")
+st.plotly_chart(fig3, use_container_width=True)
+
+# 4️⃣ Cumplimiento por Área
+area_summary = area_long.groupby("AREA")["valor"].mean().sort_values(ascending=False).reset_index()
+
+fig4 = px.bar(
+    area_summary,
+    x="AREA",
+    y="valor",
+    color="valor",
+    color_continuous_scale="Viridis",
+    title="Cumplimiento Promedio por Área"
+)
+st.plotly_chart(fig4, use_container_width=True)
 
 # =====================================================
 # TABLAS DE CONTROL / TRANSPARENCIA
@@ -191,5 +257,6 @@ with st.expander("📋 Datos normalizados - Áreas y Tareas"):
     st.dataframe(area_long, use_container_width=True)
 
 st.caption("Fuente: Google Sheets · Actualización automática cada 5 minutos")
+
 
 
