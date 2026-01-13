@@ -21,8 +21,12 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+# REEMPLAZA ST.SECRETS CON REEMPLAZO DE SALTOS DE LÍNEA
+service_account_info = dict(st.secrets["gcp_service_account"])
+service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+
 CREDS = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
+    service_account_info,
     scopes=SCOPES
 )
 
@@ -39,6 +43,18 @@ def load_data():
     sh = client.open(SHEET_NAME)
     df_obj = pd.DataFrame(sh.worksheet("2023").get_all_records())
     df_area = pd.DataFrame(sh.worksheet("2023 AREAS").get_all_records())
+    
+    # LIMPIEZA BÁSICA DE COLUMNAS: quita espacios y reemplaza saltos de línea
+    df_obj.columns = df_obj.columns.str.strip().str.replace("\n", " ")
+    df_area.columns = df_area.columns.str.strip().str.replace("\n", " ")
+    
+    # RENOMBRAR columnas críticas para evitar KeyError
+    df_area.rename(columns={
+        "Área": "AREA",
+        "Realizada?": "¿Realizada?",
+        "Puesto Responsable": "PUESTO RESPONSABLE"
+    }, inplace=True)
+    
     return df_obj, df_area
 
 df_obj, df_area = load_data()
@@ -51,7 +67,8 @@ MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"
 estado_map = {
     "VERDE": 1,
     "AMARILLO": 0.5,
-    "ROJO": 0
+    "ROJO": 0,
+    "MORADO": 0  # Nuevo: MORADO = No subido
 }
 
 frecuencia_map = {
@@ -67,16 +84,22 @@ frecuencia_map = {
 # NORMALIZACIÓN DE MESES
 # =====================================================
 def normalizar_meses(df, id_cols):
-    return (
-        df.melt(
-            id_vars=id_cols,
-            value_vars=MESES,
-            var_name="Mes",
-            value_name="Estado"
-        )
-        .dropna(subset=["Estado"])
-    )
+    # Validar columnas
+    faltantes = [c for c in id_cols if c not in df.columns]
+    if faltantes:
+        raise KeyError(f"Columnas faltantes en df: {faltantes}")
+    
+    # Filtrar meses que existen en df
+    meses_presentes = [m for m in MESES if m in df.columns]
+    
+    return df.melt(
+        id_vars=id_cols,
+        value_vars=meses_presentes,
+        var_name="Mes",
+        value_name="Estado"
+    ).dropna(subset=["Estado"])
 
+# Normalizar datos de objetivos y áreas
 obj_long = normalizar_meses(
     df_obj,
     ["Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
@@ -107,7 +130,8 @@ obj_resumen = (
         score_total=("valor", "sum"),
         verdes=("Estado", lambda x: (x == "VERDE").sum()),
         amarillos=("Estado", lambda x: (x == "AMARILLO").sum()),
-        rojos=("Estado", lambda x: (x == "ROJO").sum())
+        rojos=("Estado", lambda x: (x == "ROJO").sum()),
+        morados=("Estado", lambda x: (x == "MORADO").sum())  # nuevo
     )
 )
 
@@ -123,6 +147,8 @@ obj_resumen["riesgo"] = obj_resumen["rojos"] > 0
 # CLASIFICACIÓN EJECUTIVA
 # =====================================================
 def clasificar_estado(row):
+    if row["morados"] > 0:
+        return "NO SUBIDO"
     if row["riesgo"]:
         return "RIESGO"
     if row["cumplimiento_%"] >= 90:
