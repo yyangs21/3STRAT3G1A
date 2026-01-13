@@ -14,18 +14,21 @@ st.set_page_config(
 st.title("📊 Dashboard Estratégico y de Control 2023")
 
 # =====================================================
-# AUTENTICACIÓN GOOGLE SHEETS
+# AUTENTICACIÓN GOOGLE SHEETS (STREAMLIT SECRETS)
 # =====================================================
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-CREDS = Credentials.from_service_account_file(
-    "credentials/service_account.json",
+CREDS = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
     scopes=SCOPES
 )
 
 client = gspread.authorize(CREDS)
 
-# 👉 EDITA SOLO ESTO
+# 👉 EDITA SOLO ESTO (nombre exacto del Google Sheets)
 SHEET_NAME = "DATAESTRATEGIA"
 
 # =====================================================
@@ -64,12 +67,15 @@ frecuencia_map = {
 # NORMALIZACIÓN DE MESES
 # =====================================================
 def normalizar_meses(df, id_cols):
-    return df.melt(
-        id_vars=id_cols,
-        value_vars=MESES,
-        var_name="Mes",
-        value_name="Estado"
-    ).dropna(subset=["Estado"])
+    return (
+        df.melt(
+            id_vars=id_cols,
+            value_vars=MESES,
+            var_name="Mes",
+            value_name="Estado"
+        )
+        .dropna(subset=["Estado"])
+    )
 
 obj_long = normalizar_meses(
     df_obj,
@@ -150,7 +156,7 @@ st.dataframe(
 )
 
 # =====================================================
-# TABLAS DE CONTROL (DEBUG / TRANSPARENCIA)
+# TABLAS DE CONTROL / TRANSPARENCIA
 # =====================================================
 with st.expander("📋 Datos normalizados - Objetivos"):
     st.dataframe(obj_long, use_container_width=True)
@@ -159,3 +165,5 @@ with st.expander("📋 Datos normalizados - Áreas y Tareas"):
     st.dataframe(area_long, use_container_width=True)
 
 st.caption("Fuente: Google Sheets · Actualización automática cada 5 minutos")
+
+
