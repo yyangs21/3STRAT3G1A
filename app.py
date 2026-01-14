@@ -1,63 +1,60 @@
-# =====================================================
-# IMPORTS
-# =====================================================
 import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 import plotly.express as px
 import plotly.graph_objects as go
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import A4
-from io import BytesIO
 
 # =====================================================
-# CONFIG STREAMLIT
+# CONFIGURACIÓN GENERAL
 # =====================================================
 st.set_page_config(
     page_title="Dashboard Estratégico 2023",
     layout="wide"
 )
 
-st.title("📊 Dashboard Estratégico y Operativo 2023")
-st.markdown("**Análisis ejecutivo de cumplimiento, riesgo y desviación operativa.**")
+# Forzar fondo blanco
+st.markdown("""
+<style>
+    .stApp {
+        background-color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("📊 Dashboard Estratégico y de Ejecución 2023")
 
 # =====================================================
-# GOOGLE SHEETS AUTH
+# AUTENTICACIÓN GOOGLE SHEETS
 # =====================================================
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 
-service_account_info = dict(st.secrets["gcp_service_account"])
-service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
-
 CREDS = Credentials.from_service_account_info(
-    service_account_info,
+    st.secrets["gcp_service_account"],
     scopes=SCOPES
 )
 
 client = gspread.authorize(CREDS)
+
 SHEET_NAME = "DATAESTRATEGIA"
 
 # =====================================================
-# LOAD DATA
+# CARGA DE DATOS
 # =====================================================
 @st.cache_data(ttl=300)
 def load_data():
     sh = client.open(SHEET_NAME)
     df_obj = pd.DataFrame(sh.worksheet("2023").get_all_records())
     df_area = pd.DataFrame(sh.worksheet("2023 AREAS").get_all_records())
-    df_obj.columns = df_obj.columns.str.strip()
-    df_area.columns = df_area.columns.str.strip()
     return df_obj, df_area
 
 df_obj, df_area = load_data()
 
 # =====================================================
-# CONFIG
+# CONFIGURACIONES
 # =====================================================
 MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 
@@ -65,209 +62,265 @@ estado_map = {
     "VERDE": 1,
     "AMARILLO": 0.5,
     "ROJO": 0,
-    "MORADO": 0
+    "MORADO": None  # No subido
 }
 
-COLOR_MAP = {
-    "VERDE":"#2ecc71",
-    "AMARILLO":"#f1c40f",
-    "ROJO":"#e74c3c",
-    "MORADO":"#8e44ad"
+color_map = {
+    "VERDE": "#2ecc71",
+    "AMARILLO": "#f1c40f",
+    "ROJO": "#e74c3c",
+    "MORADO": "#9b59b6"
+}
+
+frecuencia_map = {
+    "Mensual": 12,
+    "Bimestral": 6,
+    "Trimestral": 4,
+    "Cuatrimestral": 3,
+    "Semestral": 2,
+    "Anual": 1
 }
 
 # =====================================================
-# NORMALIZAR
+# NORMALIZACIÓN
 # =====================================================
 def normalizar(df, id_cols):
-    meses_validos = [m for m in MESES if m in df.columns]
-    df_long = df.melt(
+    return df.melt(
         id_vars=id_cols,
-        value_vars=meses_validos,
+        value_vars=MESES,
         var_name="Mes",
         value_name="Estado"
     )
-    df_long = df_long.dropna(subset=["Estado"])
-    df_long["valor"] = df_long["Estado"].map(estado_map)
-    return df_long
 
 obj_long = normalizar(
     df_obj,
-    ["Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
+    ["Objetivo","Tipo Objetivo","Frecuencia Medición"]
 )
 
 area_long = normalizar(
     df_area,
-    ["OBJETIVO","AREA","PUESTO RESPONSABLE","TAREA","Fecha Inicio","Fecha Fin","¿Realizada?"]
+    ["OBJETIVO","AREA","PUESTO RESPONSABLE","TAREA","¿Realizada?"]
+)
+
+# =====================================================
+# MAPEO
+# =====================================================
+obj_long["valor"] = obj_long["Estado"].map(estado_map)
+area_long["valor"] = area_long["Estado"].map(estado_map)
+
+# =====================================================
+# FILTROS (SIDEBAR)
+# =====================================================
+st.sidebar.header("🎛️ Filtros")
+
+mes_sel = st.sidebar.multiselect(
+    "Mes",
+    MESES,
+    default=MESES
+)
+
+obj_long = obj_long[obj_long["Mes"].isin(mes_sel)]
+area_long = area_long[area_long["Mes"].isin(mes_sel)]
+
+# =====================================================
+# RESÚMENES
+# =====================================================
+obj_resumen = obj_long.groupby("Objetivo", as_index=False).agg(
+    score=("valor","mean"),
+    rojos=("Estado", lambda x: (x=="ROJO").sum()),
+    morados=("Estado", lambda x: (x=="MORADO").sum())
+)
+
+area_resumen = area_long.groupby("AREA", as_index=False).agg(
+    score=("valor","mean"),
+    rojos=("Estado", lambda x: (x=="ROJO").sum()),
+    morados=("Estado", lambda x: (x=="MORADO").sum())
 )
 
 # =====================================================
 # KPIs
 # =====================================================
-st.subheader("📌 Indicadores Clave")
+st.subheader("📌 Indicadores Ejecutivos")
 
 k1,k2,k3,k4 = st.columns(4)
 
-k1.metric("Objetivos Estratégicos", obj_long["Objetivo"].nunique())
-k2.metric("Áreas Ejecutoras", area_long["AREA"].nunique())
-k3.metric("Tareas Totales", area_long["TAREA"].nunique())
-k4.metric("Cumplimiento Global", f"{obj_long['valor'].mean()*100:.1f}%")
+k1.metric("Objetivos Estratégicos", len(obj_resumen))
+k2.metric("Áreas Evaluadas", len(area_resumen))
+k3.metric("Alertas Críticas", obj_resumen["rojos"].sum())
+k4.metric("No Subidos", obj_resumen["morados"].sum())
 
 # =====================================================
 # MEDIDORES (GAUGE)
 # =====================================================
-st.subheader("🎯 Nivel de Cumplimiento Global")
+g1,g2 = st.columns(2)
 
-c1, c2 = st.columns(2)
+with g1:
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=obj_resumen["score"].mean()*100,
+        title={'text':"Cumplimiento Estratégico 2023"},
+        gauge={'axis': {'range':[0,100]},
+               'bar': {'color':"#2c3e50"},
+               'steps': [
+                   {'range':[0,60],'color':'#e74c3c'},
+                   {'range':[60,85],'color':'#f1c40f'},
+                   {'range':[85,100],'color':'#2ecc71'}
+               ]}
+    ))
+    st.plotly_chart(fig, use_container_width=True)
 
-fig_gauge_obj = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=obj_long["valor"].mean()*100,
-    title={"text":"Objetivos Estratégicos 2023"},
-    gauge={
-        "axis":{"range":[0,100]},
-        "bar":{"color":"#2ecc71"},
-        "steps":[
-            {"range":[0,50],"color":"#e74c3c"},
-            {"range":[50,80],"color":"#f1c40f"},
-            {"range":[80,100],"color":"#2ecc71"}
-        ]
-    }
-))
-
-fig_gauge_area = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=area_long["valor"].mean()*100,
-    title={"text":"Ejecución Operativa 2023"},
-    gauge={
-        "axis":{"range":[0,100]},
-        "bar":{"color":"#3498db"},
-        "steps":[
-            {"range":[0,50],"color":"#e74c3c"},
-            {"range":[50,80],"color":"#f1c40f"},
-            {"range":[80,100],"color":"#2ecc71"}
-        ]
-    }
-))
-
-c1.plotly_chart(fig_gauge_obj, use_container_width=True)
-c2.plotly_chart(fig_gauge_area, use_container_width=True)
+with g2:
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=area_resumen["score"].mean()*100,
+        title={'text':"Ejecución Operativa 2023"},
+        gauge={'axis': {'range':[0,100]},
+               'bar': {'color':"#34495e"},
+               'steps': [
+                   {'range':[0,60],'color':'#e74c3c'},
+                   {'range':[60,85],'color':'#f1c40f'},
+                   {'range':[85,100],'color':'#2ecc71'}
+               ]}
+    ))
+    st.plotly_chart(fig, use_container_width=True)
 
 # =====================================================
-# DESVIACIÓN MENSUAL
+# TABS DE GRÁFICAS
 # =====================================================
-with st.expander("📉 Análisis de Desviación Mensual"):
-    st.markdown("**Mide la estabilidad del cumplimiento durante el año. Alta desviación = gestión inestable.**")
+tab1, tab2 = st.tabs(["📊 Estratégico 2023", "🏭 Áreas 2023"])
 
-    c1,c2 = st.columns(2)
-
-    obj_std = obj_long.groupby("Mes")["valor"].std().reindex(MESES)
-    area_std = area_long.groupby("Mes")["valor"].std().reindex(MESES)
-
-    fig_std_obj = px.bar(
-        obj_std,
-        y="valor",
-        title="Desviación Mensual – Objetivos",
-        template="plotly_white",
-        color_discrete_sequence=["#34495e"]
+with tab1:
+    st.markdown("**Distribución del estado de los objetivos estratégicos**")
+    fig = px.histogram(
+        obj_long,
+        x="Estado",
+        color="Estado",
+        color_discrete_map=color_map
     )
+    st.plotly_chart(fig, use_container_width=True)
 
-    fig_std_area = px.bar(
-        area_std,
-        y="valor",
-        title="Desviación Mensual – Áreas",
-        template="plotly_white",
-        color_discrete_sequence=["#7f8c8d"]
-    )
-
-    c1.plotly_chart(fig_std_obj, use_container_width=True)
-    c2.plotly_chart(fig_std_area, use_container_width=True)
-
-# =====================================================
-# RANKING ÁREAS CRÍTICAS
-# =====================================================
-with st.expander("🔥 Ranking de Áreas Críticas", expanded=True):
-    st.markdown("**Áreas con mayor concentración de ROJO y MORADO.**")
-
-    area_risk = (
-        area_long
-        .groupby("AREA")
-        .agg(
-            tareas=("TAREA","count"),
-            cumplimiento=("valor","mean"),
-            rojos=("Estado", lambda x:(x=="ROJO").sum()),
-            morados=("Estado", lambda x:(x=="MORADO").sum())
-        )
-        .reset_index()
-    )
-
-    area_risk["riesgo_%"] = ((area_risk["rojos"]+area_risk["morados"]) / area_risk["tareas"]) * 100
-    area_risk = area_risk.sort_values("riesgo_%", ascending=False)
-
-    fig_rank = px.bar(
-        area_risk.head(10),
-        x="riesgo_%",
+with tab2:
+    st.markdown("**Ranking de áreas críticas**")
+    fig = px.bar(
+        area_resumen.sort_values("score"),
+        x="score",
         y="AREA",
         orientation="h",
-        title="Top 10 Áreas Críticas",
-        template="plotly_white",
-        color="riesgo_%",
-        color_continuous_scale="Reds"
+        color="score",
+        color_continuous_scale="RdYlGn"
     )
-
-    st.plotly_chart(fig_rank, use_container_width=True)
-    st.dataframe(area_risk, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
 # =====================================================
 # ALERTAS
 # =====================================================
-with st.expander("🚨 Alertas Ejecutivas", expanded=True):
-    for _, r in area_risk.iterrows():
-        if r["riesgo_%"] >= 40:
-            st.error(f"🔴 Área CRÍTICA: {r['AREA']} ({r['riesgo_%']:.1f}%)")
-        elif r["riesgo_%"] >= 25:
-            st.warning(f"⚠️ Área en riesgo: {r['AREA']} ({r['riesgo_%']:.1f}%)")
+st.subheader("🚨 Alertas Automáticas")
+
+alertas = obj_resumen[obj_resumen["rojos"] > 0]
+
+st.dataframe(alertas, use_container_width=True)
 
 # =====================================================
-# EXPORT PDF
+# TABLAS DETALLE
 # =====================================================
-def generar_pdf(area_risk):
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
+with st.expander("📋 Datos Estratégicos"):
+    st.dataframe(obj_long, use_container_width=True)
+
+with st.expander("📋 Datos Áreas"):
+    st.dataframe(area_long, use_container_width=True)
+
+st.caption("Dashboard Ejecutivo")
+
+# =====================================================
+# EXPORTAR INFORME EJECUTIVO A PDF
+# =====================================================
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from datetime import datetime
+import os
+
+def exportar_pdf():
+    file_name = "Informe_Ejecutivo_2023.pdf"
+    doc = SimpleDocTemplate(
+        file_name,
+        pagesize=A4,
+        rightMargin=2*cm,
+        leftMargin=2*cm,
+        topMargin=2*cm,
+        bottomMargin=2*cm
+    )
+
     styles = getSampleStyleSheet()
-    story = []
+    elements = []
 
-    story.append(Paragraph("<b>Informe Ejecutivo – Dashboard Estratégico 2023</b>", styles["Title"]))
-    story.append(Spacer(1, 12))
+    # ---------- PORTADA ----------
+    elements.append(Paragraph("<b>INFORME EJECUTIVO DE CUMPLIMIENTO 2023</b>", styles["Title"]))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph("Dashboard Estratégico y de Ejecución", styles["h2"]))
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph(f"Fecha de generación: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
+    elements.append(PageBreak())
 
-    story.append(Paragraph("<b>Resumen Ejecutivo</b>", styles["Heading2"]))
-    story.append(Paragraph(f"Cumplimiento Objetivos: {obj_long['valor'].mean()*100:.1f}%", styles["Normal"]))
-    story.append(Paragraph(f"Cumplimiento Áreas: {area_long['valor'].mean()*100:.1f}%", styles["Normal"]))
+    # ---------- KPIs ----------
+    elements.append(Paragraph("<b>Indicadores Clave</b>", styles["h1"]))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"Objetivos Estratégicos: {len(obj_resumen)}", styles["Normal"]))
+    elements.append(Paragraph(f"Áreas Evaluadas: {len(area_resumen)}", styles["Normal"]))
+    elements.append(Paragraph(f"Alertas Críticas: {obj_resumen['rojos'].sum()}", styles["Normal"]))
+    elements.append(Paragraph(f"No Subidos: {obj_resumen['morados'].sum()}", styles["Normal"]))
+    elements.append(PageBreak())
 
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("<b>Áreas Críticas</b>", styles["Heading2"]))
+    # ---------- EXPORTAR GRÁFICAS ----------
+    os.makedirs("tmp", exist_ok=True)
 
-    table = [["Área","Riesgo %","Cumplimiento %"]]
-    for _, r in area_risk.iterrows():
-        table.append([r["AREA"], f"{r['riesgo_%']:.1f}%", f"{r['cumplimiento']*100:.1f}%"])
+    fig_g1.write_image("tmp/gauge_estrategico.png", scale=2)
+    fig_g2.write_image("tmp/gauge_operativo.png", scale=2)
 
-    story.append(Table(table))
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
+    elements.append(Paragraph("<b>Cumplimiento Estratégico</b>", styles["h1"]))
+    elements.append(Image("tmp/gauge_estrategico.png", width=14*cm, height=8*cm))
+    elements.append(PageBreak())
 
-st.subheader("📄 Exportar Informe Ejecutivo")
-pdf = generar_pdf(area_risk)
+    elements.append(Paragraph("<b>Ejecución Operativa</b>", styles["h1"]))
+    elements.append(Image("tmp/gauge_operativo.png", width=14*cm, height=8*cm))
+    elements.append(PageBreak())
 
-st.download_button(
-    "📥 Descargar Informe PDF",
-    pdf,
-    "Informe_Estrategico_2023.pdf",
-    "application/pdf"
-)
+    # ---------- RANKING ÁREAS ----------
+    fig_rank = px.bar(
+        area_resumen.sort_values("score"),
+        x="score",
+        y="AREA",
+        orientation="h",
+        color="score",
+        color_continuous_scale="RdYlGn"
+    )
+    fig_rank.write_image("tmp/ranking_areas.png", scale=2)
 
-st.caption("Dashboard Ejecutivo · Fondo blanco · Análisis de desviación y riesgo")
+    elements.append(Paragraph("<b>Ranking de Áreas Críticas</b>", styles["h1"]))
+    elements.append(Image("tmp/ranking_areas.png", width=15*cm, height=10*cm))
+    elements.append(PageBreak())
 
+    # ---------- ALERTAS ----------
+    elements.append(Paragraph("<b>Alertas Detectadas</b>", styles["h1"]))
+    for _, row in alertas.iterrows():
+        elements.append(Paragraph(f"- {row['Objetivo']} presenta desviaciones críticas.", styles["Normal"]))
 
+    doc.build(elements)
 
+    return file_name
 
+# =====================================================
+# BOTÓN STREAMLIT
+# =====================================================
+st.subheader("📄 Informe Ejecutivo")
 
+if st.button("📥 Exportar Informe Ejecutivo PDF"):
+    pdf = exportar_pdf()
+    with open(pdf, "rb") as f:
+        st.download_button(
+            label="⬇️ Descargar PDF",
+            data=f,
+            file_name=pdf,
+            mime="application/pdf"
+        )
