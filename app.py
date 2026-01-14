@@ -17,8 +17,7 @@ st.set_page_config(
 st.markdown("""
 <style>
     .stApp {
-        background-color: white;
-    }
+        background-color: black;
 </style>
 """, unsafe_allow_html=True)
 
@@ -324,3 +323,4 @@ if st.button("📥 Exportar Informe Ejecutivo PDF"):
             file_name=pdf,
             mime="application/pdf"
         )
+
