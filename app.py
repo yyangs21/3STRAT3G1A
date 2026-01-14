@@ -111,16 +111,16 @@ obj_resumen = obj_long.groupby(
 )
 
 obj_resumen["meses_esperados"] = obj_resumen["Frecuencia Medición"].map(frecuencia_map)
-obj_resumen["cumplimiento_%"] = (obj_resumen["score_total"] / obj_resumen["meses_esperados"]).clip(0,1) * 100
+obj_resumen["cumplimiento"] = (obj_resumen["score_total"] / obj_resumen["meses_esperados"]).clip(0,1) * 100
 
 def clasificar_estado(row):
     if row["morados"] > 0:
         return "NO SUBIDO"
     if row["rojos"] > 0:
         return "RIESGO"
-    if row["cumplimiento_%"] >= 90:
+    if row["cumplimiento"] >= 90:
         return "CUMPLIDO"
-    if row["cumplimiento_%"] >= 60:
+    if row["cumplimiento"] >= 60:
         return "EN SEGUIMIENTO"
     return "CRÍTICO"
 
@@ -132,10 +132,10 @@ obj_resumen["estado_ejecutivo"] = obj_resumen.apply(clasificar_estado, axis=1)
 area_resumen = area_long.groupby(
     ["AREA"], as_index=False
 ).agg(
-    cumplimiento_%=("valor","mean")
+    cumplimiento=("valor","mean")
 )
 
-area_resumen["cumplimiento_%"] *= 100
+area_resumen["cumplimiento"] *= 100
 
 # =====================================================
 # KPIs + GAUGES (DOBLES)
@@ -145,7 +145,7 @@ st.subheader("🎯 Indicadores Clave")
 c1, c2 = st.columns(2)
 
 # --- Gauge Estratégico
-cum_obj = obj_resumen["cumplimiento_%"].mean()
+cum_obj = obj_resumen["cumplimiento"].mean()
 
 fig_obj = go.Figure(go.Indicator(
     mode="gauge+number",
@@ -164,7 +164,7 @@ fig_obj = go.Figure(go.Indicator(
 c1.plotly_chart(fig_obj, use_container_width=True)
 
 # --- Gauge Operativo
-cum_area = area_resumen["cumplimiento_%"].mean()
+cum_area = area_resumen["cumplimiento"].mean()
 
 fig_area = go.Figure(go.Indicator(
     mode="gauge+number",
@@ -195,7 +195,7 @@ if (obj_resumen["estado_ejecutivo"]=="CRÍTICO").any():
 if (obj_resumen["estado_ejecutivo"]=="NO SUBIDO").any():
     alertas.append("🟣 Existen objetivos NO SUBIDOS (MORADO)")
 
-if (area_resumen["cumplimiento_%"] < 60).any():
+if (area_resumen["cumplimiento"] < 60).any():
     alertas.append("🔴 Existen áreas con ejecución menor al 60%")
 
 if alertas:
@@ -227,8 +227,8 @@ with st.expander("📊 Estado Ejecutivo de Objetivos"):
 
 with st.expander("📊 Ranking de Áreas Críticas"):
     fig_rank = px.bar(
-        area_resumen.sort_values("cumplimiento_%"),
-        x="cumplimiento_%",
+        area_resumen.sort_values("cumplimiento"),
+        x="cumplimiento",
         y="AREA",
         orientation="h",
         title="Ranking de Cumplimiento por Área"
@@ -257,3 +257,4 @@ with st.expander("Áreas – Detalle"):
     st.dataframe(area_resumen, use_container_width=True)
 
 st.caption("Fuente: Google Sheets · Actualización automática cada 5 minutos")
+
