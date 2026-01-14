@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="Dashboard Estratégico",
     layout="wide"
 )
-st.title("📊 Dashboard Estratégico y de Control)
+st.title("📊 Dashboard Estratégico y de Control")
 
 # =====================================================
 # AUTENTICACIÓN GOOGLE SHEETS
@@ -300,4 +300,5 @@ with st.expander("Áreas y Tareas"):
     st.dataframe(area_f)
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
 
