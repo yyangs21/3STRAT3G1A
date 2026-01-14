@@ -9,20 +9,20 @@ import plotly.graph_objects as go
 # CONFIGURACIÓN STREAMLIT
 # =====================================================
 st.set_page_config(
-    page_title="Dashboard Estratégico 2023",
+    page_title="Dashboard Estratégico",
     layout="wide"
 )
 
 st.markdown(
     """
     <style>
-    .stApp { background-color: white; }
+    .stApp { background-color: ; }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-st.title("📊 Dashboard Estratégico y de Control 2023")
+st.title("📊 Dashboard Estratégico y de Control")
 
 # =====================================================
 # AUTENTICACIÓN GOOGLE SHEETS
@@ -232,7 +232,7 @@ with g2:
 # =====================================================
 # VISUALIZACIONES ESTRATÉGICAS
 # =====================================================
-st.header("📘 Análisis Estratégico – Hoja 2023")
+st.header("📘 Análisis Estratégico")
 
 with st.expander("📊 Estado y Tendencias Estratégicas", expanded=True):
 
@@ -270,7 +270,7 @@ with st.expander("📊 Estado y Tendencias Estratégicas", expanded=True):
 # =====================================================
 # VISUALIZACIONES OPERATIVAS
 # =====================================================
-st.header("📗 Análisis Operativo – Hoja 2023 AREAS")
+st.header("📗 Análisis Operativo")
 
 with st.expander("📊 Ejecución y Ranking de Áreas", expanded=True):
 
@@ -318,5 +318,6 @@ with st.expander("Datos Normalizados – Áreas y Tareas"):
     st.dataframe(area_long,use_container_width=True)
 
 st.caption("Fuente: Google Sheets · Actualización automática cada 5 minutos")
+
 
 
