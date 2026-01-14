@@ -126,7 +126,7 @@ obj_resumen["estado_ejecutivo"] = obj_resumen.apply(clasificar_estado, axis=1)
 # =====================================================
 # FILTROS (OPCIONALES – NO BLOQUEAN DATA)
 # =====================================================
-st.sidebar.header("🔎 Filtros (opcionales)")
+st.sidebar.header("Filtros")
 
 f_estado = st.sidebar.multiselect(
     "Estado Ejecutivo",
@@ -245,7 +245,7 @@ with st.expander("📉 Desviación de Cumplimiento"):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-with st.expander("🔥 Ranking de Áreas"):
+with st.expander("Ranking de Áreas"):
     rank = area_f.groupby("AREA")["valor"].mean().sort_values()
     fig = px.bar(
         rank,
@@ -300,5 +300,6 @@ with st.expander("Áreas y Tareas"):
     st.dataframe(area_f)
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
 
 
