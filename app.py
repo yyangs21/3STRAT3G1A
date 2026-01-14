@@ -9,10 +9,10 @@ import plotly.graph_objects as go
 # CONFIGURACIÓN STREAMLIT
 # =====================================================
 st.set_page_config(
-    page_title="Dashboard Estratégico 2023",
+    page_title="Dashboard Estratégico",
     layout="wide"
 )
-st.title("📊 Dashboard Estratégico y de Control 2023 – ULTRA PRO")
+st.title("📊 Dashboard Estratégico y de Control)
 
 # =====================================================
 # AUTENTICACIÓN GOOGLE SHEETS
@@ -299,4 +299,5 @@ with st.expander("Objetivos"):
 with st.expander("Áreas y Tareas"):
     st.dataframe(area_f)
 
-st.caption("Fuente: Google Sheets · Dashboard Estratégico 2023")
+st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
