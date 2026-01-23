@@ -173,12 +173,12 @@ def gs_client():
     creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
     return gspread.authorize(creds)
 
-SHEET_NAME = "DATAESTRATEGIA"
+https://docs.google.com/spreadsheets/d/1uY30GMPPzR754z2xIRdO2rEnJzG4lOCc04-Q2eELNbk/edit?hl=es&gid=1451350731#gid=1451350731 = "DATAESTRATEGIA"
 
 @st.cache_data(ttl=300)
 def get_years_available():
     cl = gs_client()
-    sh = cl.open(SHEET_NAME)
+    sh = cl.open(https://docs.google.com/spreadsheets/d/1uY30GMPPzR754z2xIRdO2rEnJzG4lOCc04-Q2eELNbk/edit?hl=es&gid=1451350731#gid=1451350731)
     titles = [ws.title.strip() for ws in sh.worksheets()]
     years = sorted([int(t) for t in titles if t.isdigit()])
     return years
@@ -186,7 +186,7 @@ def get_years_available():
 @st.cache_data(ttl=300)
 def load_year(year: int):
     cl = gs_client()
-    sh = cl.open(SHEET_NAME)
+    sh = cl.open(https://docs.google.com/spreadsheets/d/1uY30GMPPzR754z2xIRdO2rEnJzG4lOCc04-Q2eELNbk/edit?hl=es&gid=1451350731#gid=1451350731)
     df_obj = pd.DataFrame(sh.worksheet(str(year)).get_all_records())
     df_area = pd.DataFrame(sh.worksheet(f"{year} AREAS").get_all_records())
     df_obj = safe_strip(df_obj)
@@ -890,4 +890,5 @@ with tabs[6]:
         st.dataframe(area_long, use_container_width=True)
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
 
