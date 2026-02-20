@@ -205,7 +205,7 @@ def get_years_available():
 def load_year(year: int):
     """
     Carga:
-      - Hoja '{year}' (objetivos) -> siempre
+      - Hoja '{year}' (InformesGenerales) -> siempre
       - Hoja '{year} AREAS' (operativo) -> opcional (puede no existir en 2023)
     """
     sh = client.open(SHEET_NAME)
@@ -220,8 +220,8 @@ def load_year(year: int):
     except WorksheetNotFound:
         df_dept = pd.DataFrame()
 
-    # --- Normalizaciones Objetivos ---
-    for c in ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Frecuencia Medición"]:
+    # --- Normalizaciones InformesGenerales ---
+    for c in ["Tipo","Perspectiva","Eje","TareasObjetivos","Objetivo","Tipo Objetivo","Frecuencia Medición"]:
         if c in df_obj.columns:
             df_obj[c] = normalize_text_series(df_obj[c])
 
@@ -238,11 +238,11 @@ def load_year(year: int):
         if "PUESTO" in df_dept.columns and "PUESTO RESPONSABLE" not in df_dept.columns:
             df_dept.rename(columns={"PUESTO": "PUESTO RESPONSABLE"}, inplace=True)
 
-        # Operativo: DEPARTAMENTO (si existe "Área", la convertimos)
-        if "DEPARTAMENTO" not in df_dept.columns and "Área" in df_dept.columns:
-            df_dept.rename(columns={"Área":"DEPARTAMENTO"}, inplace=True)
+        # Operativo: TareasObjetivos (si existe "Área", la convertimos)
+        if "TareasObjetivos" not in df_dept.columns and "Área" in df_dept.columns:
+            df_dept.rename(columns={"Área":"TareasObjetivos"}, inplace=True)
 
-        for c in ["TIPO","PERSPECTIVA","EJE","DEPARTAMENTO","OBJETIVO","PUESTO RESPONSABLE","TAREA","¿Realizada?"]:
+        for c in ["TIPO","PERSPECTIVA","EJE","TareasObjetivos","OBJETIVO","PUESTO RESPONSABLE","TAREA","¿Realizada?"]:
             if c in df_dept.columns:
                 df_dept[c] = normalize_text_series(df_dept[c])
 
@@ -284,29 +284,29 @@ has_operativo_year = (df_dept is not None) and (not df_dept.empty)
 st.sidebar.divider()
 st.sidebar.header("🔎 Filtros (opcionales)")
 
-# --- Objetivos ---
+# --- InformesGenerales ---
 f_tipo_plan = st.sidebar.multiselect("Tipo (POA / PEC)", sorted(df_obj["Tipo"].dropna().unique()) if "Tipo" in df_obj.columns else [])
 f_persp = st.sidebar.multiselect("Perspectiva", sorted(df_obj["Perspectiva"].dropna().unique()) if "Perspectiva" in df_obj.columns else [])
 f_eje = st.sidebar.multiselect("Eje", sorted(df_obj["Eje"].dropna().unique()) if "Eje" in df_obj.columns else [])
-f_depto = st.sidebar.multiselect("Departamento (estratégico)", sorted(df_obj["Departamento"].dropna().unique()) if "Departamento" in df_obj.columns else [])
+f_depto = st.sidebar.multiselect("TareasObjetivos (estratégico)", sorted(df_obj["TareasObjetivos"].dropna().unique()) if "TareasObjetivos" in df_obj.columns else [])
 
 st.sidebar.markdown("---")
 
 # --- Operativo (solo si existe la hoja AREAS del año base) ---
 if has_operativo_year:
-    f_dept_op = st.sidebar.multiselect("Departamento (operativo)", sorted(df_dept["DEPARTAMENTO"].dropna().unique()) if "DEPARTAMENTO" in df_dept.columns else [])
+    f_dept_op = st.sidebar.multiselect("TareasObjetivos (operativo)", sorted(df_dept["TareasObjetivos"].dropna().unique()) if "TareasObjetivos" in df_dept.columns else [])
     f_puesto = st.sidebar.multiselect("Puesto Responsable", sorted(df_dept["PUESTO RESPONSABLE"].dropna().unique()) if "PUESTO RESPONSABLE" in df_dept.columns else [])
     f_realizada = st.sidebar.multiselect("Ejecución (Realizada / No realizada)", sorted(df_dept["¿Realizada?"].dropna().unique()) if "¿Realizada?" in df_dept.columns else [])
 else:
-    st.sidebar.info(f"ℹ️ El año {year_data} no tiene hoja '{year_data} AREAS'. Se mostrará solo la parte estratégica (Objetivos).")
+    st.sidebar.info(f"ℹ️ El año {year_data} no tiene hoja '{year_data} AREAS'. Se mostrará solo la parte estratégica (InformesGenerales).")
     f_dept_op, f_puesto, f_realizada = [], [], []
 
 st.sidebar.caption("✅ Si NO seleccionas filtros, se muestra TODO por default.")
 
 # =====================================================
-# PROCESAMIENTO OBJETIVOS
+# PROCESAMIENTO InformesGenerales
 # =====================================================
-obj_id_cols = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
+obj_id_cols = ["Tipo","Perspectiva","Eje","TareasObjetivos","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
 obj_id_cols = [c for c in obj_id_cols if c in df_obj.columns]
 
 obj_long = normalizar_meses(df_obj, obj_id_cols)
@@ -314,9 +314,9 @@ obj_long = normalizar_meses(df_obj, obj_id_cols)
 obj_long = apply_filter(obj_long, "Tipo", f_tipo_plan)
 obj_long = apply_filter(obj_long, "Perspectiva", f_persp)
 obj_long = apply_filter(obj_long, "Eje", f_eje)
-obj_long = apply_filter(obj_long, "Departamento", f_depto)
+obj_long = apply_filter(obj_long, "TareasObjetivos", f_depto)
 
-grp_cols = [c for c in ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Frecuencia Medición"] if c in obj_long.columns]
+grp_cols = [c for c in ["Tipo","Perspectiva","Eje","TareasObjetivos","Objetivo","Tipo Objetivo","Frecuencia Medición"] if c in obj_long.columns]
 
 obj_resumen = obj_long.groupby(grp_cols, as_index=False).agg(
     score_total=("valor","sum"),
@@ -340,16 +340,16 @@ obj_resumen["estado_ejecutivo"] = obj_resumen.apply(estado_exec, axis=1)
 # PROCESAMIENTO OPERATIVO (si existe)
 # =====================================================
 if has_operativo_year:
-    dept_id_cols = ["TIPO","PERSPECTIVA","EJE","DEPARTAMENTO","OBJETIVO","PUESTO RESPONSABLE","TAREA","Fecha Inicio","Fecha Fin","¿Realizada?"]
+    dept_id_cols = ["TIPO","PERSPECTIVA","EJE","TareasObjetivos","OBJETIVO","PUESTO RESPONSABLE","TAREA","Fecha Inicio","Fecha Fin","¿Realizada?"]
     dept_id_cols = [c for c in dept_id_cols if c in df_dept.columns]
 
     dept_long = normalizar_meses(df_dept, dept_id_cols)
 
-    dept_long = apply_filter(dept_long, "DEPARTAMENTO", f_dept_op)
+    dept_long = apply_filter(dept_long, "TareasObjetivos", f_dept_op)
     dept_long = apply_filter(dept_long, "PUESTO RESPONSABLE", f_puesto)
     dept_long = apply_filter(dept_long, "¿Realizada?", f_realizada)
 
-    dept_res = dept_long.groupby("DEPARTAMENTO", as_index=False).agg(
+    dept_res = dept_long.groupby("TareasObjetivos", as_index=False).agg(
         cumplimiento=("valor","mean"),
         tareas=("TAREA","nunique") if "TAREA" in dept_long.columns else ("Estado","count"),
         rojos=("Estado", lambda x: (x=="ROJO").sum()),
@@ -361,27 +361,27 @@ if has_operativo_year:
 
     exec_res = None
     if "¿Realizada?" in dept_long.columns:
-        exec_res = (dept_long.groupby(["DEPARTAMENTO","¿Realizada?"]).size()
+        exec_res = (dept_long.groupby(["TareasObjetivos","¿Realizada?"]).size()
                     .reset_index(name="conteo"))
-        exec_res["%"] = exec_res["conteo"] / exec_res.groupby("DEPARTAMENTO")["conteo"].transform("sum") * 100
+        exec_res["%"] = exec_res["conteo"] / exec_res.groupby("TareasObjetivos")["conteo"].transform("sum") * 100
 
     dept_res_puesto = None
     if "PUESTO RESPONSABLE" in dept_long.columns:
-        dept_res_puesto = dept_long.groupby(["DEPARTAMENTO","PUESTO RESPONSABLE"], as_index=False).agg(
+        dept_res_puesto = dept_long.groupby(["TareasObjetivos","PUESTO RESPONSABLE"], as_index=False).agg(
             cumplimiento=("valor","mean"),
             tareas=("TAREA","nunique") if "TAREA" in dept_long.columns else ("Estado","count")
         )
         dept_res_puesto["cumplimiento_%"] = dept_res_puesto["cumplimiento"] * 100
 else:
-    dept_long = pd.DataFrame(columns=["DEPARTAMENTO","Mes","Estado","valor"])
-    dept_res = pd.DataFrame(columns=["DEPARTAMENTO","cumplimiento","tareas","rojos","amarillos","verdes","morados","cumplimiento_%"])
+    dept_long = pd.DataFrame(columns=["TareasObjetivos","Mes","Estado","valor"])
+    dept_res = pd.DataFrame(columns=["TareasObjetivos","cumplimiento","tareas","rojos","amarillos","verdes","morados","cumplimiento_%"])
     exec_res = None
     dept_res_puesto = None
 
 # =====================================================
 # TABS
 # =====================================================
-tabs = st.tabs(["📌 Resumen", "🎯 Objetivos", "🏢 Operativo (Deptos)", "📊 Comparativo", "🚨 Alertas", "📄 Exportar", "📋 Datos"])
+tabs = st.tabs(["📌 Resumen", "🎯 InformesGenerales", "🏢 Operativo (Deptos)", "📊 Comparativo", "🚨 Alertas", "📄 Exportar", "📋 Datos"])
 
 # =====================================================
 # TAB 0: RESUMEN
@@ -390,7 +390,7 @@ with tabs[0]:
     st.subheader(f"📌 Resumen Ejecutivo — Año {year_data}")
 
     c1,c2,c3,c4,c5 = st.columns(5)
-    c1.metric("Objetivos", int(len(obj_resumen)))
+    c1.metric("InformesGenerales", int(len(obj_resumen)))
     c2.metric("Cumplidos", int((obj_resumen["estado_ejecutivo"]=="CUMPLIDO").sum()))
     c3.metric("En Riesgo", int((obj_resumen["estado_ejecutivo"]=="RIESGO").sum()))
     c4.metric("Críticos / No Subido", int(obj_resumen["estado_ejecutivo"].isin(["CRÍTICO","NO SUBIDO"]).sum()))
@@ -407,7 +407,7 @@ with tabs[0]:
                "steps":[{"range":[0,60],"color":"#e74c3c"},
                         {"range":[60,90],"color":"#f1c40f"},
                         {"range":[90,100],"color":"#00a65a"}]},
-        title={"text": f"{year_data} — Cumplimiento Estratégico (Objetivos)"}
+        title={"text": f"{year_data} — Cumplimiento Estratégico (InformesGenerales)"}
     ))
     g1.plotly_chart(style_plotly(fig_g1, height=460), use_container_width=True)
 
@@ -421,7 +421,7 @@ with tabs[0]:
                    "steps":[{"range":[0,60],"color":"#e74c3c"},
                             {"range":[60,90],"color":"#f1c40f"},
                             {"range":[90,100],"color":"#00a65a"}]},
-            title={"text": f"{year_data} — Cumplimiento Operativo (Departamentos)"}
+            title={"text": f"{year_data} — Cumplimiento Operativo (TareasObjetivos)"}
         ))
         g2.plotly_chart(style_plotly(fig_g2, height=460), use_container_width=True)
     else:
@@ -445,7 +445,7 @@ with tabs[0]:
                 text="Cantidad"
             )
             fig.update_traces(textposition="outside")
-            st.plotly_chart(style_plotly(fig, height=660, title="Distribución de Estados Ejecutivos (Objetivos)"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=660, title="Distribución de Estados Ejecutivos (InformesGenerales)"), use_container_width=True)
 
     with right:
         if obj_long.empty:
@@ -454,19 +454,19 @@ with tabs[0]:
             tr = obj_long.groupby("Mes")["valor"].mean().reindex(MESES).reset_index()
             tr["cumplimiento_%"] = tr["valor"] * 100
             fig = px.line(tr, x="Mes", y="cumplimiento_%", markers=True)
-            st.plotly_chart(style_plotly(fig, height=660, title="Tendencia Mensual — Cumplimiento Promedio (Objetivos)"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=660, title="Tendencia Mensual — Cumplimiento Promedio (InformesGenerales)"), use_container_width=True)
 
 # =====================================================
-# TAB 1: OBJETIVOS
+# TAB 1: InformesGenerales
 # =====================================================
 with tabs[1]:
-    st.subheader("🎯 Objetivos — Análisis Avanzado")
+    st.subheader("🎯 InformesGenerales — Análisis Avanzado")
 
     colA, colB = st.columns(2)
 
     with colA:
         if obj_resumen.empty:
-            st.info("No hay objetivos con los filtros actuales.")
+            st.info("No hay InformesGenerales con los filtros actuales.")
         else:
             top_bad = obj_resumen.sort_values("cumplimiento_%").head(15)
             fig = px.bar(
@@ -477,7 +477,7 @@ with tabs[1]:
                 text="cumplimiento_%"
             )
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-            st.plotly_chart(style_plotly(fig, height=760, title="Top 15 Objetivos más críticos (peor cumplimiento)"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=760, title="Top 15 InformesGenerales más críticos (peor cumplimiento)"), use_container_width=True)
 
     with colB:
         if obj_resumen.empty:
@@ -487,17 +487,17 @@ with tabs[1]:
                 obj_resumen, names="estado_ejecutivo", hole=0.55,
                 color="estado_ejecutivo", color_discrete_map=COLOR_EJEC
             )
-            st.plotly_chart(style_plotly(fig, height=760, title="Mix de Estado Ejecutivo (Objetivos)"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=760, title="Mix de Estado Ejecutivo (InformesGenerales)"), use_container_width=True)
 
     c1, c2 = st.columns(2)
     with c1:
-        if "Departamento" in obj_resumen.columns and not obj_resumen.empty:
-            dep = obj_resumen.groupby("Departamento")["cumplimiento_%"].mean().reset_index().sort_values("cumplimiento_%")
-            fig = px.bar(dep, x="cumplimiento_%", y="Departamento", orientation="h",
+        if "TareasObjetivos" in obj_resumen.columns and not obj_resumen.empty:
+            dep = obj_resumen.groupby("TareasObjetivos")["cumplimiento_%"].mean().reset_index().sort_values("cumplimiento_%")
+            fig = px.bar(dep, x="cumplimiento_%", y="TareasObjetivos", orientation="h",
                          color="cumplimiento_%", color_continuous_scale="RdYlGn")
-            st.plotly_chart(style_plotly(fig, height=660, title="Cumplimiento Promedio por Departamento (estratégico)"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=660, title="Cumplimiento Promedio por TareasObjetivos (estratégico)"), use_container_width=True)
         else:
-            st.info("No existe columna Departamento (o no hay datos) en objetivos para este año.")
+            st.info("No existe columna TareasObjetivos (o no hay datos) en InformesGenerales para este año.")
 
     with c2:
         if "Perspectiva" in obj_resumen.columns and not obj_resumen.empty:
@@ -506,7 +506,7 @@ with tabs[1]:
                          color="cumplimiento_%", color_continuous_scale="RdYlGn")
             st.plotly_chart(style_plotly(fig, height=660, title="Cumplimiento Promedio por Perspectiva"), use_container_width=True)
         else:
-            st.info("No existe columna Perspectiva (o no hay datos) en objetivos para este año.")
+            st.info("No existe columna Perspectiva (o no hay datos) en InformesGenerales para este año.")
 
     st.markdown("#### 🌡️ Heatmap — Objetivo vs Mes (Top 25 más críticos)")
     if obj_long.empty or "Objetivo" not in obj_long.columns:
@@ -516,13 +516,13 @@ with tabs[1]:
         avg_obj = hm_base.groupby("Objetivo")["valor"].mean().sort_values().head(25).index.tolist()
         hm = hm_base[hm_base["Objetivo"].isin(avg_obj)].pivot_table(index="Objetivo", columns="Mes", values="valor", fill_value=0)
         fig = px.imshow(hm, color_continuous_scale=["#e74c3c","#f1c40f","#00a65a"])
-        st.plotly_chart(style_plotly(fig, height=760, title="Heatmap (Top 25 objetivos más críticos)"), use_container_width=True)
+        st.plotly_chart(style_plotly(fig, height=760, title="Heatmap (Top 25 InformesGenerales más críticos)"), use_container_width=True)
 
 # =====================================================
 # TAB 2: OPERATIVO
 # =====================================================
 with tabs[2]:
-    st.subheader("🏢 Operativo — Control por Departamento")
+    st.subheader("🏢 Operativo — Control por TareasObjetivos")
 
     if not has_operativo_year:
         st.info(f"Este año ({year_data}) no incluye operativo porque no existe la hoja '{year_data} AREAS'.")
@@ -534,34 +534,34 @@ with tabs[2]:
     left, right = st.columns(2)
     with left:
         rk = dept_res.sort_values("cumplimiento_%", ascending=asc).head(20)
-        fig = px.bar(rk, x="cumplimiento_%", y="DEPARTAMENTO", orientation="h",
+        fig = px.bar(rk, x="cumplimiento_%", y="TareasObjetivos", orientation="h",
                      color="cumplimiento_%", color_continuous_scale="RdYlGn", text="cumplimiento_%")
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        st.plotly_chart(style_plotly(fig, height=760, title="Ranking de Departamentos Operativos (Top 20)"), use_container_width=True)
+        st.plotly_chart(style_plotly(fig, height=760, title="Ranking de TareasObjetivos Operativos (Top 20)"), use_container_width=True)
 
     with right:
         sc = dept_res.copy()
-        fig = px.scatter(sc, x="tareas", y="cumplimiento_%", size="tareas", hover_name="DEPARTAMENTO")
+        fig = px.scatter(sc, x="tareas", y="cumplimiento_%", size="tareas", hover_name="TareasObjetivos")
         st.plotly_chart(style_plotly(fig, height=760, title="Cumplimiento vs Carga (# tareas)"), use_container_width=True)
 
     if exec_res is not None and not exec_res.empty:
-        st.markdown("#### ✅ Ejecución (Realizada vs No realizada) por Departamento — Top 15 con menor % realizada")
-        tmp = exec_res.pivot_table(index="DEPARTAMENTO", columns="¿Realizada?", values="%", fill_value=0).reset_index()
+        st.markdown("#### ✅ Ejecución (Realizada vs No realizada) por TareasObjetivos — Top 15 con menor % realizada")
+        tmp = exec_res.pivot_table(index="TareasObjetivos", columns="¿Realizada?", values="%", fill_value=0).reset_index()
         if "REALIZADA" in tmp.columns:
             tmp = tmp.sort_values("REALIZADA").head(15)
-            fig = px.bar(tmp, x="REALIZADA", y="DEPARTAMENTO", orientation="h", text="REALIZADA")
+            fig = px.bar(tmp, x="REALIZADA", y="TareasObjetivos", orientation="h", text="REALIZADA")
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
             st.plotly_chart(style_plotly(fig, height=660, title="Top 15 deptos con menor % Realizada"), use_container_width=True)
         else:
             st.info("No se encontró categoría REALIZADA en ¿Realizada?")
 
-    st.markdown("#### 🌡️ Heatmap Operativo — Departamento vs Mes (Top 25 más críticos)")
+    st.markdown("#### 🌡️ Heatmap Operativo — TareasObjetivos vs Mes (Top 25 más críticos)")
     hm_base = dept_long.copy()
     if hm_base.empty:
         st.info("No hay datos suficientes para el heatmap operativo con los filtros actuales.")
     else:
-        avg_d = hm_base.groupby("DEPARTAMENTO")["valor"].mean().sort_values().head(25).index.tolist()
-        hm = hm_base[hm_base["DEPARTAMENTO"].isin(avg_d)].pivot_table(index="DEPARTAMENTO", columns="Mes", values="valor", fill_value=0)
+        avg_d = hm_base.groupby("TareasObjetivos")["valor"].mean().sort_values().head(25).index.tolist()
+        hm = hm_base[hm_base["TareasObjetivos"].isin(avg_d)].pivot_table(index="TareasObjetivos", columns="Mes", values="valor", fill_value=0)
         fig = px.imshow(hm, color_continuous_scale=["#e74c3c","#f1c40f","#00a65a"])
         st.plotly_chart(style_plotly(fig, height=760, title="Heatmap Operativo (Top 25 deptos más críticos)"), use_container_width=True)
 
@@ -569,7 +569,7 @@ with tabs[2]:
 # TAB 3: COMPARATIVO
 # =====================================================
 with tabs[3]:
-    st.subheader("📊 Comparativo (Objetivos y Operativo por Departamento)")
+    st.subheader("📊 Comparativo (InformesGenerales y Operativo por TareasObjetivos)")
 
     if len(compare_years) < 2:
         st.info("Selecciona al menos 2 años en el sidebar para comparar.")
@@ -580,8 +580,8 @@ with tabs[3]:
         for y in compare_years:
             o, d = load_year(y)
 
-            # OBJETIVOS
-            o_id = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
+            # InformesGenerales
+            o_id = ["Tipo","Perspectiva","Eje","TareasObjetivos","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
             o_id = [c for c in o_id if c in o.columns]
             ol = normalizar_meses(o, o_id)
             ol["AÑO"] = y
@@ -589,22 +589,22 @@ with tabs[3]:
             ol = apply_filter(ol, "Tipo", f_tipo_plan)
             ol = apply_filter(ol, "Perspectiva", f_persp)
             ol = apply_filter(ol, "Eje", f_eje)
-            ol = apply_filter(ol, "Departamento", f_depto)
+            ol = apply_filter(ol, "TareasObjetivos", f_depto)
             comp_obj.append(ol)
 
             # OPERATIVO (solo si existe la hoja AREAS del año y)
             if d is not None and not d.empty:
-                if "DEPARTAMENTO" not in d.columns and "Área" in d.columns:
-                    d.rename(columns={"Área":"DEPARTAMENTO"}, inplace=True)
+                if "TareasObjetivos" not in d.columns and "Área" in d.columns:
+                    d.rename(columns={"Área":"TareasObjetivos"}, inplace=True)
                 if "¿Realizada?" in d.columns:
                     d["¿Realizada?"] = normalize_realizada(d["¿Realizada?"])
 
-                d_id = ["TIPO","PERSPECTIVA","EJE","DEPARTAMENTO","OBJETIVO","PUESTO RESPONSABLE","TAREA","Fecha Inicio","Fecha Fin","¿Realizada?"]
+                d_id = ["TIPO","PERSPECTIVA","EJE","TareasObjetivos","OBJETIVO","PUESTO RESPONSABLE","TAREA","Fecha Inicio","Fecha Fin","¿Realizada?"]
                 d_id = [c for c in d_id if c in d.columns]
                 dl = normalizar_meses(d, d_id)
                 dl["AÑO"] = y
 
-                dl = apply_filter(dl, "DEPARTAMENTO", f_dept_op)
+                dl = apply_filter(dl, "TareasObjetivos", f_dept_op)
                 dl = apply_filter(dl, "PUESTO RESPONSABLE", f_puesto)
                 dl = apply_filter(dl, "¿Realizada?", f_realizada)
                 comp_dept.append(dl)
@@ -612,9 +612,9 @@ with tabs[3]:
         comp_obj_long = pd.concat(comp_obj, ignore_index=True) if comp_obj else pd.DataFrame()
         comp_dept_long = pd.concat(comp_dept, ignore_index=True) if comp_dept else pd.DataFrame()
 
-        st.markdown("### 🎯 Objetivos — % por color (VERDE/AMARILLO/ROJO/MORADO)")
+        st.markdown("### 🎯 InformesGenerales — % por color (VERDE/AMARILLO/ROJO/MORADO)")
         if comp_obj_long.empty:
-            st.info("No hay datos de objetivos para comparar con los filtros actuales.")
+            st.info("No hay datos de InformesGenerales para comparar con los filtros actuales.")
         else:
             obj_mix = comp_obj_long.groupby(["AÑO","Estado"]).size().reset_index(name="conteo")
             obj_mix["%"] = obj_mix["conteo"] / obj_mix.groupby("AÑO")["conteo"].transform("sum") * 100
@@ -626,7 +626,7 @@ with tabs[3]:
                 text="%"
             )
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-            st.plotly_chart(style_plotly(fig, height=660, title="Comparativo Objetivos — % por color"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=660, title="Comparativo InformesGenerales — % por color"), use_container_width=True)
 
         st.markdown("### 🏢 Operativo — % por color (VERDE/AMARILLO/ROJO/MORADO)")
         if comp_dept_long.empty:
@@ -659,9 +659,9 @@ with tabs[3]:
                 t = comp_obj_long.groupby(["AÑO","Mes"])["valor"].mean().reset_index()
                 t["cumplimiento_%"] = t["valor"] * 100
                 fig = px.line(t, x="Mes", y="cumplimiento_%", color="AÑO", markers=True)
-                st.plotly_chart(style_plotly(fig, height=620, title="Objetivos — tendencia mensual promedio"), use_container_width=True)
+                st.plotly_chart(style_plotly(fig, height=620, title="InformesGenerales — tendencia mensual promedio"), use_container_width=True)
             else:
-                st.info("Sin datos de objetivos para tendencia.")
+                st.info("Sin datos de InformesGenerales para tendencia.")
 
         with right:
             if not comp_dept_long.empty:
@@ -698,8 +698,8 @@ with tabs[4]:
             nivel = "CRÍTICA" if r["cumplimiento_%"] < 40 else "NORMAL"
             alert_rows.append({
                 "Nivel": nivel,
-                "Tipo": "Departamento (operativo)",
-                "Nombre": r["DEPARTAMENTO"],
+                "Tipo": "TareasObjetivos (operativo)",
+                "Nombre": r["TareasObjetivos"],
                 "Estado": "BAJO CUMPLIMIENTO",
                 "Cumplimiento %": float(r["cumplimiento_%"])
             })
@@ -734,7 +734,7 @@ with tabs[5]:
     fig_estado_exec = px.pie(
         obj_resumen, names="estado_ejecutivo", hole=0.55,
         color="estado_ejecutivo", color_discrete_map=COLOR_EJEC,
-        title=f"{year_data} — Estado Ejecutivo (Objetivos)"
+        title=f"{year_data} — Estado Ejecutivo (InformesGenerales)"
     )
     fig_estado_exec = style_plotly(fig_estado_exec, height=520)
 
@@ -742,7 +742,7 @@ with tabs[5]:
     if has_operativo_year and not dept_res.empty:
         fig_rank_dept = px.bar(
             dept_res.sort_values("cumplimiento_%").head(20),
-            x="cumplimiento_%", y="DEPARTAMENTO", orientation="h",
+            x="cumplimiento_%", y="TareasObjetivos", orientation="h",
             title=f"{year_data} — Ranking crítico Operativo (Top 20 deptos)"
         )
         fig_rank_dept = style_plotly(fig_rank_dept, height=520)
@@ -788,7 +788,7 @@ with tabs[5]:
 
 <h2>KPIs</h2>
 <div class="kpis">
-  <div class="kpi"><b>Objetivos</b><br>{k_obj}</div>
+  <div class="kpi"><b>InformesGenerales</b><br>{k_obj}</div>
   <div class="kpi"><b>Cumplidos</b><br>{k_ok}</div>
   <div class="kpi"><b>En Riesgo</b><br>{k_riesgo}</div>
   <div class="kpi"><b>Críticos/No Subido</b><br>{k_crit}</div>
@@ -802,10 +802,10 @@ with tabs[5]:
 <h2>Alertas</h2>
 {rep_alert_html}
 
-<h2>Tabla: Objetivos (resumen)</h2>
+<h2>Tabla: InformesGenerales (resumen)</h2>
 {obj_resumen.head(200).to_html(index=False)}
 
-<h2>Tabla: Operativo (departamentos resumen)</h2>
+<h2>Tabla: Operativo (TareasObjetivos resumen)</h2>
 {dept_html}
 
 </body>
@@ -827,13 +827,13 @@ with tabs[5]:
 with tabs[6]:
     st.subheader("📋 Datos (auditoría)")
 
-    with st.expander("Objetivos — Resumen"):
+    with st.expander("InformesGenerales — Resumen"):
         st.dataframe(add_no_col(obj_resumen), use_container_width=True)
 
-    with st.expander("Objetivos — Long"):
+    with st.expander("InformesGenerales — Long"):
         st.dataframe(add_no_col(obj_long), use_container_width=True)
 
-    with st.expander("Operativo — Departamentos resumen"):
+    with st.expander("Operativo — TareasObjetivos resumen"):
         if has_operativo_year:
             st.dataframe(add_no_col(dept_res), use_container_width=True)
         else:
@@ -846,3 +846,4 @@ with tabs[6]:
             st.info(f"No hay hoja '{year_data} AREAS'.")
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
