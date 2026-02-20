@@ -294,7 +294,7 @@ st.sidebar.markdown("---")
 
 # --- Operativo (solo si existe la hoja AREAS del año base) ---
 if has_operativo_year:
-    f_dept_op = st.sidebar.multiselect("Departamento (operativo)", sorted(df_dept["DEPARTAMENTO"].dropna().unique()) if "DEPARTAMENTO" in df_dept.columns else [])
+    f_dept_op = st.sidebar.multiselect("Departamento (TareasEspecificas)", sorted(df_dept["DEPARTAMENTO"].dropna().unique()) if "DEPARTAMENTO" in df_dept.columns else [])
     f_puesto = st.sidebar.multiselect("Puesto Responsable", sorted(df_dept["PUESTO RESPONSABLE"].dropna().unique()) if "PUESTO RESPONSABLE" in df_dept.columns else [])
     f_realizada = st.sidebar.multiselect("Ejecución (Realizada / No realizada)", sorted(df_dept["¿Realizada?"].dropna().unique()) if "¿Realizada?" in df_dept.columns else [])
 else:
@@ -407,7 +407,7 @@ with tabs[0]:
                "steps":[{"range":[0,60],"color":"#e74c3c"},
                         {"range":[60,90],"color":"#f1c40f"},
                         {"range":[90,100],"color":"#00a65a"}]},
-        title={"text": f"{year_data} — Cumplimiento Estratégico (Objetivos)"}
+        title={"text": f"{year_data} — Cumplimiento Estratégico (InformesGenerales)"}
     ))
     g1.plotly_chart(style_plotly(fig_g1, height=460), use_container_width=True)
 
@@ -421,7 +421,7 @@ with tabs[0]:
                    "steps":[{"range":[0,60],"color":"#e74c3c"},
                             {"range":[60,90],"color":"#f1c40f"},
                             {"range":[90,100],"color":"#00a65a"}]},
-            title={"text": f"{year_data} — Cumplimiento Operativo (Departamentos)"}
+            title={"text": f"{year_data} — Cumplimiento Operativo (TareasObjetivos)"}
         ))
         g2.plotly_chart(style_plotly(fig_g2, height=460), use_container_width=True)
     else:
@@ -454,7 +454,7 @@ with tabs[0]:
             tr = obj_long.groupby("Mes")["valor"].mean().reindex(MESES).reset_index()
             tr["cumplimiento_%"] = tr["valor"] * 100
             fig = px.line(tr, x="Mes", y="cumplimiento_%", markers=True)
-            st.plotly_chart(style_plotly(fig, height=660, title="Tendencia Mensual — Cumplimiento Promedio (Objetivos)"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=660, title="Tendencia Mensual — Cumplimiento Promedio (InformesGenerales)"), use_container_width=True)
 
 # =====================================================
 # TAB 1: OBJETIVOS
@@ -487,7 +487,7 @@ with tabs[1]:
                 obj_resumen, names="estado_ejecutivo", hole=0.55,
                 color="estado_ejecutivo", color_discrete_map=COLOR_EJEC
             )
-            st.plotly_chart(style_plotly(fig, height=760, title="Mix de Estado Ejecutivo (Objetivos)"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=760, title="Mix de Estado Ejecutivo (InformesGenerales)"), use_container_width=True)
 
     c1, c2 = st.columns(2)
     with c1:
@@ -569,7 +569,7 @@ with tabs[2]:
 # TAB 3: COMPARATIVO
 # =====================================================
 with tabs[3]:
-    st.subheader("📊 Comparativo (Objetivos y Operativo por Departamento)")
+    st.subheader("📊 Comparativo InformesGenerales y TareasEspecificas por Departamento)")
 
     if len(compare_years) < 2:
         st.info("Selecciona al menos 2 años en el sidebar para comparar.")
@@ -626,7 +626,7 @@ with tabs[3]:
                 text="%"
             )
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-            st.plotly_chart(style_plotly(fig, height=660, title="Comparativo Objetivos — % por color"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=660, title="Comparativo InformesGenerales — % por color"), use_container_width=True)
 
         st.markdown("### 🏢 Operativo — % por color (VERDE/AMARILLO/ROJO/MORADO)")
         if comp_dept_long.empty:
@@ -805,7 +805,7 @@ with tabs[5]:
 <h2>Tabla: Objetivos (resumen)</h2>
 {obj_resumen.head(200).to_html(index=False)}
 
-<h2>Tabla: Operativo (departamentos resumen)</h2>
+<h2>Tabla: Operativo (TareasEspecificas resumen)</h2>
 {dept_html}
 
 </body>
@@ -833,7 +833,7 @@ with tabs[6]:
     with st.expander("Objetivos — Long"):
         st.dataframe(add_no_col(obj_long), use_container_width=True)
 
-    with st.expander("Operativo — Departamentos resumen"):
+    with st.expander("Operativo — TareasEspecificas resumen"):
         if has_operativo_year:
             st.dataframe(add_no_col(dept_res), use_container_width=True)
         else:
@@ -846,3 +846,4 @@ with tabs[6]:
             st.info(f"No hay hoja '{year_data} AREAS'.")
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
