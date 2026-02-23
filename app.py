@@ -403,6 +403,9 @@ f_depto = st.sidebar.multiselect(
     "Departamento (estratégico)",
     sorted(df_obj["Departamento"].dropna().unique()) if "Departamento" in df_obj.columns else []
 )
+f_obje = st.sidebar.multiselect("Objetivo",sorted(df_obj{"Objetivo"].dropna().unique()) if "Objetivo in df_obj.columns else []
+
+)
 
 # --- Filtros operativo (si existe hoja AREAS) ---
 if has_operativo_year:
@@ -436,6 +439,7 @@ obj_long = apply_filter(obj_long, "Tipo", f_tipo_plan)
 obj_long = apply_filter(obj_long, "Perspectiva", f_persp)
 obj_long = apply_filter(obj_long, "Eje", f_eje)
 obj_long = apply_filter(obj_long, "Departamento", f_depto)
+obj_long = apply_filter(obj_long, "Objetivo", f_obje)
 
 grp_cols = [c for c in ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Frecuencia Medición"] if c in obj_long.columns]
 
@@ -887,6 +891,7 @@ with tabs[3]:
             ol = apply_filter(ol, "Perspectiva", f_persp)
             ol = apply_filter(ol, "Eje", f_eje)
             ol = apply_filter(ol, "Departamento", f_depto)
+            o1 = apply_filter(o1, "Objetivo", f_obje)
             comp_obj.append(ol)
 
             # OPERATIVO (opcional por año)
@@ -1205,5 +1210,6 @@ with tabs[6]:
             st.info("Sin datos operativos para este año o con los filtros actuales.")
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
 
 
