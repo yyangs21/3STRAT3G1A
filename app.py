@@ -403,7 +403,9 @@ f_depto = st.sidebar.multiselect(
     "Departamento (estratégico)",
     sorted(df_obj["Departamento"].dropna().unique()) if "Departamento" in df_obj.columns else []
 )
-f_obje = st.sidebar.multiselect("Objetivo",sorted(df_obj{"Objetivo"].dropna().unique()) if "Objetivo" in df_obj.columns else []
+f_obje = st.sidebar.multiselect(
+    "Objetivo",
+    sorted(df_obj["Objetivo"].dropna().unique()) if "Objetivo" in df_obj.columns else []
 
 )
 
@@ -1210,6 +1212,7 @@ with tabs[6]:
             st.info("Sin datos operativos para este año o con los filtros actuales.")
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
 
 
 
