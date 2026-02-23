@@ -302,7 +302,7 @@ def make_count_df_from_series(series_counts, x_name="Categoría", y_name="Cantid
 
     if start_at_one and not df.empty:
         df[y_name] = pd.to_numeric(df[y_name], errors="coerce").fillna(0)
-       df["y_name_plot"] = df[y_name].apply(lambda v: v if v > 0 else 1)
+        df["y_name_plot"] = df[y_name].apply(lambda v: v if v > 0 else 1)
     return df
 
 # =====================================================
@@ -1092,4 +1092,5 @@ with tabs[6]:
             st.info(f"El año {year_data} no tiene hoja '{year_data} AREAS'.")
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
 
