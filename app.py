@@ -108,6 +108,8 @@ summary {
 [data-testid="stAlert"] * {
     color: #111111 !important;
 }
+
+/* General */
 hr { border: none; border-top: 1px solid #e5e7eb; }
 </style>
 """,
@@ -132,7 +134,7 @@ SHEET_NAME = "DATAESTRATEGIA"
 # CONFIG DATA
 # =====================================================
 MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
-MESES_ORDEN = {m: i+1 for i, m in enumerate(MESES)}  # empieza en 1
+MESES_ORDEN = {m: i + 1 for i, m in enumerate(MESES)}  # empieza en 1
 
 ESTADO_MAP = {"VERDE": 1.0, "AMARILLO": 0.5, "ROJO": 0.0, "MORADO": 0.0}
 COLOR_ESTADO = {
@@ -165,8 +167,7 @@ FRECUENCIA_MAP = {
 # =====================================================
 def style_plotly(fig, height=520, title=None):
     """
-    Aplica layout ejecutivo. Si el fig es go.Indicator (gauge),
-    NO toca x/y axes para evitar errores.
+    Layout ejecutivo. Si es gauge (indicator), no toca ejes.
     """
     fig.update_layout(
         template="plotly_white",
@@ -193,14 +194,14 @@ def style_plotly(fig, height=520, title=None):
             gridcolor="#e5e7eb",
             showline=True,
             linecolor="#d1d5db",
-            title_font=dict(color="#111111")  # <- corregido (antes titlefont daba error)
+            title_font=dict(color="#111111")
         )
         fig.update_yaxes(
             tickfont=dict(color="#111111"),
             gridcolor="#e5e7eb",
             showline=True,
             linecolor="#d1d5db",
-            title_font=dict(color="#111111")  # <- corregido
+            title_font=dict(color="#111111")
         )
     return fig
 
@@ -209,7 +210,6 @@ def normalize_text_series(s: pd.Series) -> pd.Series:
 
 def normalize_estado_series(s: pd.Series) -> pd.Series:
     x = s.replace("", np.nan).dropna().astype(str).str.strip().str.upper()
-    # limpia posibles espacios dobles / variantes
     x = x.str.replace("  ", " ", regex=False)
     return x
 
@@ -404,13 +404,16 @@ f_depto = st.sidebar.multiselect(
     sorted(df_obj["Departamento"].dropna().unique()) if "Departamento" in df_obj.columns else []
 )
 f_obje = st.sidebar.multiselect(
-    "Objetivo",
+    "Objetivo (estratégico)",
     sorted(df_obj["Objetivo"].dropna().unique()) if "Objetivo" in df_obj.columns else []
-
 )
 
 # --- Filtros operativo (si existe hoja AREAS) ---
 if has_operativo_year:
+    f_obj_oper = st.sidebar.multiselect(
+        "Objetivo (operativo)",
+        sorted(df_dept["OBJETIVO"].dropna().unique()) if "OBJETIVO" in df_dept.columns else []
+    )
     f_dept_op = st.sidebar.multiselect(
         "Departamento (operativo)",
         sorted(df_dept["DEPARTAMENTO"].dropna().unique()) if "DEPARTAMENTO" in df_dept.columns else []
@@ -425,7 +428,7 @@ if has_operativo_year:
     )
 else:
     st.sidebar.info(f"El año {year_data} no tiene hoja '{year_data} AREAS'.")
-    f_dept_op, f_puesto, f_realizada = [], [], []
+    f_obj_oper, f_dept_op, f_puesto, f_realizada = [], [], [], []
 
 st.sidebar.caption("✅ Si NO seleccionas filtros, se muestra TODO por default.")
 
@@ -479,11 +482,13 @@ if has_operativo_year:
     dept_id_cols = [c for c in dept_id_cols if c in df_dept.columns]
 
     dept_long = normalizar_meses(df_dept, dept_id_cols)
-    # --- filtros cruzados (estratégicos -> operativo) ---
+
+    # filtros operativos propios + filtros cruzados estratégicos cuando existan columnas equivalentes
     dept_long = apply_filter(dept_long, "TIPO", f_tipo_plan)
     dept_long = apply_filter(dept_long, "PERSPECTIVA", f_persp)
     dept_long = apply_filter(dept_long, "EJE", f_eje)
-    dept_long = apply_filter(dept_long, "OBJETIVO", f_obje)
+    # IMPORTANTE: filtro de objetivo operativo separado para evitar quedarte en 0 por diferencias entre Objetivo vs OBJETIVO
+    dept_long = apply_filter(dept_long, "OBJETIVO", f_obj_oper)
     dept_long = apply_filter(dept_long, "DEPARTAMENTO", f_dept_op)
     dept_long = apply_filter(dept_long, "PUESTO RESPONSABLE", f_puesto)
     dept_long = apply_filter(dept_long, "¿Realizada?", f_realizada)
@@ -540,6 +545,8 @@ with tabs[0]:
     k_riesgo = int((obj_resumen["estado_ejecutivo"]=="RIESGO").sum()) if not obj_resumen.empty else 0
     k_crit_ns = int(obj_resumen["estado_ejecutivo"].isin(["CRÍTICO","NO SUBIDO"]).sum()) if not obj_resumen.empty else 0
     k_prom_obj = safe_mean_percent(obj_resumen["cumplimiento_%"]) if "cumplimiento_%" in obj_resumen.columns else np.nan
+
+    # 🔧 ESTE sí cambia con filtros porque sale de dept_long filtrado
     k_prom_op = safe_mean_percent(dept_long["valor"] * 100) if not dept_long.empty else np.nan
 
     if has_operativo_year and not pd.isna(k_prom_op):
@@ -588,21 +595,24 @@ with tabs[0]:
     left, right = st.columns(2)
 
     with left:
-        counts = obj_resumen["estado_ejecutivo"].value_counts().reindex(ESTADO_EJEC_ORDEN).fillna(0).reset_index()
-        counts.columns = ["Estado Ejecutivo", "Cantidad"]
-        fig = px.bar(
-            counts,
-            x="Estado Ejecutivo",
-            y="Cantidad",
-            color="Estado Ejecutivo",
-            color_discrete_map=COLOR_EJEC,
-            text="Cantidad"
-        )
-        fig.update_traces(textposition="outside")
-        st.plotly_chart(
-            style_plotly(fig, height=640, title="Distribución de Estados Ejecutivos (Objetivos)"),
-            use_container_width=True
-        )
+        if not obj_resumen.empty:
+            counts = obj_resumen["estado_ejecutivo"].value_counts().reindex(ESTADO_EJEC_ORDEN).fillna(0).reset_index()
+            counts.columns = ["Estado Ejecutivo", "Cantidad"]
+            fig = px.bar(
+                counts,
+                x="Estado Ejecutivo",
+                y="Cantidad",
+                color="Estado Ejecutivo",
+                color_discrete_map=COLOR_EJEC,
+                text="Cantidad"
+            )
+            fig.update_traces(textposition="outside")
+            st.plotly_chart(
+                style_plotly(fig, height=640, title="Distribución de Estados Ejecutivos (Objetivos)"),
+                use_container_width=True
+            )
+        else:
+            st.info("Sin datos de objetivos con los filtros actuales.")
 
     with right:
         if not obj_long.empty:
@@ -724,7 +734,6 @@ with tabs[1]:
                 st.info("No existe columna Tipo para este año.")
 
         with r4:
-            # Desviación vs 100%
             dv = obj_resumen[["Objetivo","cumplimiento_%","estado_ejecutivo"]].copy()
             dv["desviación_%"] = dv["cumplimiento_%"] - 100
             dv = dv.sort_values("desviación_%").head(15)
@@ -810,10 +819,8 @@ with tabs[2]:
                 use_container_width=True
             )
 
-        # Más gráficas operativas
         r1, r2 = st.columns(2)
         with r1:
-            # Mix de colores operativo
             mix_op = dept_long["Estado"].value_counts().reindex(["VERDE","AMARILLO","ROJO","MORADO"]).fillna(0).reset_index()
             mix_op.columns = ["Estado", "Cantidad"]
             fig = px.bar(
@@ -831,7 +838,6 @@ with tabs[2]:
             )
 
         with r2:
-            # Tendencia mensual operativo
             tr = dept_long.groupby(["Mes","MesNum"], as_index=False)["valor"].mean()
             tr = tr.sort_values("MesNum")
             tr["cumplimiento_%"] = tr["valor"] * 100
@@ -897,7 +903,7 @@ with tabs[3]:
             ol = apply_filter(ol, "Perspectiva", f_persp)
             ol = apply_filter(ol, "Eje", f_eje)
             ol = apply_filter(ol, "Departamento", f_depto)
-            o1 = apply_filter(o1, "Objetivo", f_obje)
+            ol = apply_filter(ol, "Objetivo", f_obje)  # 🔧 corregido (antes había o1 y tronaba)
             comp_obj.append(ol)
 
             # OPERATIVO (opcional por año)
@@ -917,6 +923,10 @@ with tabs[3]:
                 dl = normalizar_meses(d, d_id)
                 dl["AÑO"] = y
 
+                dl = apply_filter(dl, "TIPO", f_tipo_plan)
+                dl = apply_filter(dl, "PERSPECTIVA", f_persp)
+                dl = apply_filter(dl, "EJE", f_eje)
+                dl = apply_filter(dl, "OBJETIVO", f_obj_oper)
                 dl = apply_filter(dl, "DEPARTAMENTO", f_dept_op)
                 dl = apply_filter(dl, "PUESTO RESPONSABLE", f_puesto)
                 dl = apply_filter(dl, "¿Realizada?", f_realizada)
@@ -925,7 +935,6 @@ with tabs[3]:
         comp_obj_long = pd.concat(comp_obj, ignore_index=True) if comp_obj else pd.DataFrame()
         comp_dept_long = pd.concat(comp_dept, ignore_index=True) if comp_dept else pd.DataFrame()
 
-        # --- Objetivos: % por color ---
         st.markdown("### 🎯 Objetivos — % por color (VERDE/AMARILLO/ROJO/MORADO)")
         if not comp_obj_long.empty:
             obj_mix = comp_obj_long.groupby(["AÑO","Estado"]).size().reset_index(name="conteo")
@@ -946,7 +955,6 @@ with tabs[3]:
         else:
             st.info("Sin datos de objetivos para comparativo con los filtros actuales.")
 
-        # --- Operativo: % por color ---
         st.markdown("### 🏢 Operativo — % por color (VERDE/AMARILLO/ROJO/MORADO)")
         if not comp_dept_long.empty:
             dep_mix = comp_dept_long.groupby(["AÑO","Estado"]).size().reset_index(name="conteo")
@@ -967,7 +975,6 @@ with tabs[3]:
         else:
             st.info("No hay hojas AREAS en los años comparados o quedaron sin datos por filtros.")
 
-        # --- Comparativo ejecución ---
         st.markdown("### ✅ Operativo — % Realizada vs No realizada (por año)")
         if not comp_dept_long.empty and "¿Realizada?" in comp_dept_long.columns:
             ex = comp_dept_long.groupby(["AÑO","¿Realizada?"]).size().reset_index(name="conteo")
@@ -978,7 +985,6 @@ with tabs[3]:
         else:
             st.info("No hay datos de ejecución operativa comparables.")
 
-        # --- Tendencias comparativas ---
         st.markdown("### 📈 Tendencia mensual comparativa (promedio %)")
         left, right = st.columns(2)
 
@@ -1002,12 +1008,10 @@ with tabs[3]:
             else:
                 st.info("Sin datos operativos para tendencia comparativa.")
 
-        # --- Comparativo de cobertura (qué existe / qué no existe) ---
         st.markdown("### 🧩 Cobertura comparativa (elementos que existen por año)")
         c1, c2 = st.columns(2)
 
         with c1:
-            # Objetivos únicos por año (cantidad)
             if not comp_obj_long.empty and "Objetivo" in comp_obj_long.columns:
                 cov_obj = comp_obj_long.groupby("AÑO")["Objetivo"].nunique().reset_index(name="Objetivos únicos")
                 fig = px.bar(cov_obj, x="AÑO", y="Objetivos únicos", text="Objetivos únicos")
@@ -1015,7 +1019,6 @@ with tabs[3]:
                 st.plotly_chart(style_plotly(fig, height=520, title="Cobertura de objetivos únicos por año"), use_container_width=True)
 
         with c2:
-            # Deptos únicos por año (si aplica)
             if not comp_dept_long.empty and "DEPARTAMENTO" in comp_dept_long.columns:
                 cov_dep = comp_dept_long.groupby("AÑO")["DEPARTAMENTO"].nunique().reset_index(name="Deptos únicos")
                 fig = px.bar(cov_dep, x="AÑO", y="Deptos únicos", text="Deptos únicos")
@@ -1030,7 +1033,6 @@ with tabs[4]:
 
     alert_rows = []
 
-    # Objetivos
     if not obj_resumen.empty:
         crit_obj = obj_resumen[obj_resumen["estado_ejecutivo"].isin(["CRÍTICO","RIESGO","NO SUBIDO"])].copy()
         for _, r in crit_obj.iterrows():
@@ -1043,7 +1045,6 @@ with tabs[4]:
                 "Cumplimiento %": float(r["cumplimiento_%"])
             })
 
-    # Operativo
     if not dept_res.empty:
         bad_dept = dept_res[dept_res["cumplimiento_%"] < 60].copy()
         for _, r in bad_dept.iterrows():
@@ -1071,7 +1072,6 @@ with tabs[4]:
 
         st.dataframe(alerts_df.style.apply(semaforo, axis=1), use_container_width=True)
 
-        # Mini KPIs alertas
         a1, a2, a3 = st.columns(3)
         a1.metric("Total Alertas", int(len(alerts_df)))
         a2.metric("Críticas", int((alerts_df["Nivel"]=="CRÍTICA").sum()))
@@ -1104,17 +1104,12 @@ with tabs[5]:
                 title=f"{year_data} — Ranking crítico Operativo (Top 20 deptos)"
             )
         else:
-            fig_rank_dept = px.bar(
-                pd.DataFrame({"Mensaje":["Sin datos operativos"]}),
-                x="Mensaje",
-                y=[1],
-                title=f"{year_data} — Operativo"
-            )
+            dummy = pd.DataFrame({"Etiqueta":["Sin datos operativos"], "Valor":[1]})
+            fig_rank_dept = px.bar(dummy, x="Etiqueta", y="Valor", title=f"{year_data} — Operativo")
 
         fig_estado_exec = style_plotly(fig_estado_exec, height=520)
         fig_rank_dept = style_plotly(fig_rank_dept, height=520)
 
-        # generar alerts_df si no existe (por seguridad)
         if 'alerts_df' not in locals():
             alerts_df = pd.DataFrame()
 
