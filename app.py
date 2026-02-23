@@ -479,7 +479,11 @@ if has_operativo_year:
     dept_id_cols = [c for c in dept_id_cols if c in df_dept.columns]
 
     dept_long = normalizar_meses(df_dept, dept_id_cols)
-
+    # --- filtros cruzados (estratégicos -> operativo) ---
+    dept_long = apply_filter(dept_long, "TIPO", f_tipo_plan)
+    dept_long = apply_filter(dept_long, "PERSPECTIVA", f_persp)
+    dept_long = apply_filter(dept_long, "EJE", f_eje)
+    dept_long = apply_filter(dept_long, "OBJETIVO", f_obje)
     dept_long = apply_filter(dept_long, "DEPARTAMENTO", f_dept_op)
     dept_long = apply_filter(dept_long, "PUESTO RESPONSABLE", f_puesto)
     dept_long = apply_filter(dept_long, "¿Realizada?", f_realizada)
@@ -1212,6 +1216,7 @@ with tabs[6]:
             st.info("Sin datos operativos para este año o con los filtros actuales.")
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
 
 
 
