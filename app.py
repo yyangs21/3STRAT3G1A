@@ -306,6 +306,42 @@ def estado_exec(row) -> str:
         return "EN SEGUIMIENTO"
     return "CRÍTICO"
 
+def calc_prom_inf(long_df: pd.DataFrame) -> float:
+    """
+    Calcula el % de cumplimiento de Informes Plan con la MISMA lógica que obj_resumen:
+    agrupa por objetivo, aplica frecuencia de medición, promedia.
+    Así los gauges del comparativo cuadran exactamente con el gauge de Resumen.
+    """
+    if long_df is None or long_df.empty:
+        return np.nan
+
+    grp = [c for c in ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Frecuencia Medición"]
+           if c in long_df.columns]
+    if not grp:
+        return float(long_df["valor"].mean() * 100)
+
+    res = long_df.groupby(grp, as_index=False).agg(score_total=("valor","sum"))
+
+    if "Frecuencia Medición" in res.columns:
+        res["Frecuencia Medición"] = res["Frecuencia Medición"].astype(str).str.strip().str.upper()
+        res["meses_esperados"] = res["Frecuencia Medición"].map(FRECUENCIA_MAP).fillna(12)
+    else:
+        res["meses_esperados"] = 12
+
+    res["cumplimiento_%"] = (res["score_total"] / res["meses_esperados"]).clip(0, 1) * 100
+    return float(res["cumplimiento_%"].mean())
+
+
+def calc_prom_tar(long_df: pd.DataFrame) -> float:
+    """
+    Calcula el % de cumplimiento de Tareas Plan con la MISMA lógica que dept_res:
+    promedio directo de valor * 100 (igual que cumplimiento de departamentos).
+    """
+    if long_df is None or long_df.empty:
+        return np.nan
+    return float(long_df["valor"].mean() * 100)
+
+
 def safe_mean_percent(series):
     if series is None or len(series) == 0:
         return np.nan
@@ -991,12 +1027,17 @@ with tabs[3]:
 
         gauge_data = []
         for y in compare_years:
-            prom_inf = float(comp_obj_long[comp_obj_long["AÑO"]==y]["valor"].mean() * 100) \
-                if not comp_obj_long.empty and y in comp_obj_long["AÑO"].values else np.nan
-            prom_tar = float(comp_dept_long[comp_dept_long["AÑO"]==y]["valor"].mean() * 100) \
-                if not comp_dept_long.empty and y in comp_dept_long["AÑO"].values else np.nan
-            prom_global = float(np.nanmean([v for v in [prom_inf, prom_tar] if not np.isnan(v)])) \
-                if any(not np.isnan(v) for v in [prom_inf, prom_tar]) else np.nan
+            # Usa EXACTAMENTE la misma lógica que el gauge de Resumen:
+            # Informes Plan → calc_prom_inf (frecuencia de medición aplicada)
+            # Tareas Plan   → calc_prom_tar (promedio directo de valor)
+            subset_inf = comp_obj_long[comp_obj_long["AÑO"] == y] if not comp_obj_long.empty else pd.DataFrame()
+            subset_tar = comp_dept_long[comp_dept_long["AÑO"] == y] if not comp_dept_long.empty else pd.DataFrame()
+
+            prom_inf = calc_prom_inf(subset_inf)
+            prom_tar = calc_prom_tar(subset_tar)
+
+            vals_año = [v for v in [prom_inf, prom_tar] if not np.isnan(v)]
+            prom_global = float(np.mean(vals_año)) if vals_año else np.nan
             gauge_data.append({"año": y, "inf": prom_inf, "tar": prom_tar, "global": prom_global})
 
         # Promedio CONSOLIDADO de todos los años
