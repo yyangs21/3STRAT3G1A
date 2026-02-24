@@ -351,10 +351,10 @@ def get_years_available():
 def load_year(year: int):
     sh = client.open(SHEET_NAME)
 
-    # Hoja InformesPlan (principal / obligatoria)
+    # Hoja Informes Plan (principal / obligatoria)
     df_inf = pd.DataFrame(sh.worksheet(str(year)).get_all_records())
 
-    # Hoja TareasPlan (opcional)
+    # Hoja Tareas Plan (opcional)
     df_tar = None
     area_sheet_name = f"{year} AREAS"
     try:
@@ -362,13 +362,13 @@ def load_year(year: int):
     except Exception:
         df_tar = None
 
-    # --- InformesPlan: normalización ---
+    # --- Informes Plan: normalización ---
     df_inf.columns = normalize_text_series(df_inf.columns.to_series())
     for c in ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Frecuencia Medición"]:
         if c in df_inf.columns:
             df_inf[c] = normalize_text_series(df_inf[c])
 
-    # --- TareasPlan: normalización ---
+    # --- Tareas Plan: normalización ---
     if df_tar is not None:
         df_tar.columns = normalize_text_series(df_tar.columns.to_series())
 
@@ -402,8 +402,8 @@ def load_year(year: int):
 # =====================================================
 def get_unique_values(df_inf, df_tar, col_inf, col_tar=None):
     """
-    Devuelve valores únicos combinados de la columna en InformesPlan (col_inf)
-    y en TareasPlan (col_tar). Si col_tar es None usa col_inf en mayúsculas.
+    Devuelve valores únicos combinados de la columna en Informes Plan (col_inf)
+    y en Tareas Plan (col_tar). Si col_tar es None usa col_inf en mayúsculas.
     """
     col_tar = col_tar or col_inf.upper()
     vals = set()
@@ -437,7 +437,7 @@ df_inf, df_tar = load_year(year_data)
 has_tareas_year = df_tar is not None and not df_tar.empty
 
 st.sidebar.divider()
-st.sidebar.header("🔎 Filtros (aplican a InformesPlan y TareasPlan)")
+st.sidebar.header("🔎 Filtros (aplican a Informes Plan y Tareas Plan)")
 
 # -------------------------------------------------------
 # Filtros UNIFICADOS — buscan en ambas hojas
@@ -468,7 +468,7 @@ f_obje = st.sidebar.multiselect(
     get_unique_values(df_inf, df_tar, "Objetivo", "OBJETIVO")
 )
 
-# Filtros exclusivos de TareasPlan
+# Filtros exclusivos de Tareas Plan
 if has_tareas_year:
     f_puesto = st.sidebar.multiselect(
         "Puesto Responsable",
@@ -479,20 +479,20 @@ if has_tareas_year:
         sorted(df_tar["¿Realizada?"].dropna().unique()) if "¿Realizada?" in df_tar.columns else []
     )
 else:
-    st.sidebar.info(f"El año {year_data} no tiene hoja '{year_data} AREAS' (TareasPlan).")
+    st.sidebar.info(f"El año {year_data} no tiene hoja '{year_data} AREAS' (Tareas Plan).")
     f_puesto, f_realizada = [], []
 
 st.sidebar.caption("✅ Si NO seleccionas filtros, se muestra TODO por default.")
 
 # =====================================================
-# PROCESAMIENTO InformesPlan
+# PROCESAMIENTO Informes Plan
 # =====================================================
 inf_id_cols = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
 inf_id_cols = [c for c in inf_id_cols if c in df_inf.columns]
 
 inf_long = normalizar_meses(df_inf, inf_id_cols)
 
-# Filtros unificados aplicados a InformesPlan
+# Filtros unificados aplicados a Informes Plan
 inf_long = apply_filter(inf_long, "Tipo", f_tipo_plan)
 inf_long = apply_filter(inf_long, "Perspectiva", f_persp)
 inf_long = apply_filter(inf_long, "Eje", f_eje)
@@ -526,7 +526,7 @@ else:
     obj_resumen["estado_ejecutivo"] = obj_resumen.apply(estado_exec, axis=1)
 
 # =====================================================
-# PROCESAMIENTO TareasPlan — OPCIONAL
+# PROCESAMIENTO Tareas Plan — OPCIONAL
 # =====================================================
 tar_long = pd.DataFrame()
 dept_res = pd.DataFrame(columns=["DEPARTAMENTO","cumplimiento","tareas","rojos","amarillos","verdes","morados","cumplimiento_%"])
@@ -542,12 +542,12 @@ if has_tareas_year:
 
     tar_long = normalizar_meses(df_tar, tar_id_cols)
 
-    # Filtros unificados aplicados a TareasPlan (usando nombres en mayúsculas)
+    # Filtros unificados aplicados a Tareas Plan (usando nombres en mayúsculas)
     tar_long = apply_filter(tar_long, "TIPO", f_tipo_plan)
     tar_long = apply_filter(tar_long, "PERSPECTIVA", f_persp)
     tar_long = apply_filter(tar_long, "EJE", f_eje)
-    tar_long = apply_filter(tar_long, "DEPARTAMENTO", f_depto)     # mismo filtro que InformesPlan
-    tar_long = apply_filter(tar_long, "OBJETIVO", f_obje)          # mismo filtro que InformesPlan
+    tar_long = apply_filter(tar_long, "DEPARTAMENTO", f_depto)     # mismo filtro que Informes Plan
+    tar_long = apply_filter(tar_long, "OBJETIVO", f_obje)          # mismo filtro que Informes Plan
     tar_long = apply_filter(tar_long, "PUESTO RESPONSABLE", f_puesto)
     tar_long = apply_filter(tar_long, "¿Realizada?", f_realizada)
 
@@ -581,8 +581,8 @@ if has_tareas_year:
 # =====================================================
 tabs = st.tabs([
     "📌 Resumen",
-    "🎯 InformesPlan",
-    "🏢 TareasPlan (Deptos)",
+    "🎯 Informes Plan",
+    "🏢 Tareas Plan (Deptos)",
     "📊 Comparativo",
     "🚨 Alertas",
     "📄 Exportar",
@@ -613,29 +613,29 @@ with tabs[0]:
     c2.metric("Cumplidos", k_ok)
     c3.metric("En Riesgo", k_riesgo)
     c4.metric("Críticos / No Subido", k_crit_ns)
-    c5.metric("Cumpl. InformesPlan", f"{k_prom_obj:.1f}%" if not pd.isna(k_prom_obj) else "—")
+    c5.metric("Cumpl. Informes Plan", f"{k_prom_obj:.1f}%" if not pd.isna(k_prom_obj) else "—")
     c6.metric("Cumplimiento Global", f"{k_global:.1f}%" if not pd.isna(k_global) else "—")
 
     g1, g2, g3 = st.columns(3)
 
     val_obj = float(k_prom_obj) if not pd.isna(k_prom_obj) else 0.0
-    fig_g1 = build_gauge(val_obj, f"{year_data} — Cumplimiento InformesPlan", delta_ref=90)
+    fig_g1 = build_gauge(val_obj, f"{year_data} — Cumplimiento Informes Plan", delta_ref=90)
     g1.plotly_chart(style_plotly(fig_g1, height=420), use_container_width=True)
 
     if has_tareas_year:
         val_dept = float(k_prom_op) if not pd.isna(k_prom_op) else 0.0
-        fig_g2 = build_gauge(val_dept, f"{year_data} — Cumplimiento TareasPlan", delta_ref=90)
+        fig_g2 = build_gauge(val_dept, f"{year_data} — Cumplimiento Tareas Plan", delta_ref=90)
         g2.plotly_chart(style_plotly(fig_g2, height=420), use_container_width=True)
     else:
         val_dept = np.nan
-        g2.info(f"ℹ️ El año {year_data} no tiene hoja '{year_data} AREAS' (TareasPlan)")
+        g2.info(f"ℹ️ El año {year_data} no tiene hoja '{year_data} AREAS' (Tareas Plan)")
 
     if has_tareas_year and not pd.isna(val_dept):
         val_global = float(np.nanmean([val_obj, val_dept]))
-        subt = "Promedio: InformesPlan + TareasPlan"
+        subt = "Promedio: Informes Plan + Tareas Plan"
     else:
         val_global = float(val_obj)
-        subt = "Solo InformesPlan (sin TareasPlan)"
+        subt = "Solo Informes Plan (sin Tareas Plan)"
 
     fig_g3 = build_gauge(val_global, f"{year_data} — Cumplimiento Global Consolidado", delta_ref=90)
     fig_g3.add_annotation(
@@ -660,7 +660,7 @@ with tabs[0]:
         )
         fig.update_traces(textposition="outside")
         st.plotly_chart(
-            style_plotly(fig, height=640, title="Distribución de Estados Ejecutivos (InformesPlan)"),
+            style_plotly(fig, height=640, title="Distribución de Estados Ejecutivos (Informes Plan)"),
             use_container_width=True
         )
 
@@ -672,20 +672,20 @@ with tabs[0]:
             fig = px.line(tr, x="Mes", y="cumplimiento_%", markers=True)
             fig.update_traces(line=dict(width=3))
             st.plotly_chart(
-                style_plotly(fig, height=640, title="Tendencia Mensual — Cumplimiento Promedio (InformesPlan)"),
+                style_plotly(fig, height=640, title="Tendencia Mensual — Cumplimiento Promedio (Informes Plan)"),
                 use_container_width=True
             )
         else:
-            st.info("Sin datos de InformesPlan para mostrar tendencia.")
+            st.info("Sin datos de Informes Plan para mostrar tendencia.")
 
 # =====================================================
-# TAB 1: InformesPlan
+# TAB 1: Informes Plan
 # =====================================================
 with tabs[1]:
-    st.subheader("🎯 InformesPlan — Análisis Avanzado")
+    st.subheader("🎯 Informes Plan — Análisis Avanzado")
 
     if obj_resumen.empty:
-        st.warning("No hay datos de InformesPlan con los filtros actuales.")
+        st.warning("No hay datos de Informes Plan con los filtros actuales.")
     else:
         colA, colB = st.columns(2)
 
@@ -715,7 +715,7 @@ with tabs[1]:
                 color_discrete_map=COLOR_EJEC
             )
             st.plotly_chart(
-                style_plotly(fig, height=760, title="Mix de Estado Ejecutivo (InformesPlan)"),
+                style_plotly(fig, height=760, title="Mix de Estado Ejecutivo (Informes Plan)"),
                 use_container_width=True
             )
 
@@ -736,11 +736,11 @@ with tabs[1]:
                     color_continuous_scale="RdYlGn"
                 )
                 st.plotly_chart(
-                    style_plotly(fig, height=640, title="Cumplimiento Promedio por Departamento (InformesPlan)"),
+                    style_plotly(fig, height=640, title="Cumplimiento Promedio por Departamento (Informes Plan)"),
                     use_container_width=True
                 )
             else:
-                st.info("No existe columna Departamento en InformesPlan para este año.")
+                st.info("No existe columna Departamento en Informes Plan para este año.")
 
         with r2:
             if "Perspectiva" in obj_resumen.columns:
@@ -762,7 +762,7 @@ with tabs[1]:
                     use_container_width=True
                 )
             else:
-                st.info("No existe columna Perspectiva en InformesPlan para este año.")
+                st.info("No existe columna Perspectiva en Informes Plan para este año.")
 
         r3, r4 = st.columns(2)
         with r3:
@@ -819,18 +819,18 @@ with tabs[1]:
                 use_container_width=True
             )
         else:
-            st.info("No hay datos para heatmap de InformesPlan.")
+            st.info("No hay datos para heatmap de Informes Plan.")
 
 # =====================================================
-# TAB 2: TareasPlan (DEPARTAMENTO)
+# TAB 2: Tareas Plan (DEPARTAMENTO)
 # =====================================================
 with tabs[2]:
-    st.subheader("🏢 TareasPlan — Control por Departamento")
+    st.subheader("🏢 Tareas Plan — Control por Departamento")
 
     if not has_tareas_year:
-        st.info(f"El año {year_data} no tiene hoja '{year_data} AREAS' (TareasPlan).")
+        st.info(f"El año {year_data} no tiene hoja '{year_data} AREAS' (Tareas Plan).")
     elif tar_long.empty or dept_res.empty:
-        st.warning("No hay datos de TareasPlan con los filtros actuales.")
+        st.warning("No hay datos de Tareas Plan con los filtros actuales.")
     else:
         order = st.selectbox("Orden del ranking", ["Peor → Mejor", "Mejor → Peor"], index=0)
         asc = True if order == "Peor → Mejor" else False
@@ -849,7 +849,7 @@ with tabs[2]:
             )
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
             st.plotly_chart(
-                style_plotly(fig, height=760, title="Ranking de Departamentos TareasPlan (Top 20)"),
+                style_plotly(fig, height=760, title="Ranking de Departamentos Tareas Plan (Top 20)"),
                 use_container_width=True
             )
 
@@ -883,7 +883,7 @@ with tabs[2]:
             )
             fig.update_traces(textposition="outside")
             st.plotly_chart(
-                style_plotly(fig, height=560, title="Distribución de estados (TareasPlan)"),
+                style_plotly(fig, height=560, title="Distribución de estados (Tareas Plan)"),
                 use_container_width=True
             )
 
@@ -894,7 +894,7 @@ with tabs[2]:
             fig = px.line(tr, x="Mes", y="cumplimiento_%", markers=True)
             fig.update_traces(line=dict(width=3))
             st.plotly_chart(
-                style_plotly(fig, height=560, title="Tendencia mensual — Cumplimiento promedio (TareasPlan)"),
+                style_plotly(fig, height=560, title="Tendencia mensual — Cumplimiento promedio (Tareas Plan)"),
                 use_container_width=True
             )
 
@@ -912,7 +912,7 @@ with tabs[2]:
             else:
                 st.info("No se encontró categoría REALIZADA en ¿Realizada?")
 
-        st.markdown("#### 🌡️ Heatmap TareasPlan — Departamento vs Mes (Top 25 más críticos)")
+        st.markdown("#### 🌡️ Heatmap Tareas Plan — Departamento vs Mes (Top 25 más críticos)")
         hm_base = tar_long.copy()
         avg_d = hm_base.groupby("DEPARTAMENTO")["valor"].mean().sort_values().head(25).index.tolist()
         hm = hm_base[hm_base["DEPARTAMENTO"].isin(avg_d)].pivot_table(
@@ -924,7 +924,7 @@ with tabs[2]:
         hm = hm.reindex(columns=[m for m in MESES if m in hm.columns])
         fig = px.imshow(hm, color_continuous_scale=["#e74c3c","#f1c40f","#00a65a"])
         st.plotly_chart(
-            style_plotly(fig, height=760, title="Heatmap TareasPlan (Top 25 deptos más críticos)"),
+            style_plotly(fig, height=760, title="Heatmap Tareas Plan (Top 25 deptos más críticos)"),
             use_container_width=True
         )
 
@@ -932,7 +932,7 @@ with tabs[2]:
 # TAB 3: COMPARATIVO
 # =====================================================
 with tabs[3]:
-    st.subheader("📊 Comparativo (InformesPlan y TareasPlan por Departamento)")
+    st.subheader("📊 Comparativo (Informes Plan y Tareas Plan por Departamento)")
 
     if len(compare_years) < 2:
         st.info("Selecciona al menos 2 años en el sidebar para comparar.")
@@ -943,7 +943,7 @@ with tabs[3]:
         for y in compare_years:
             o, d = load_year(y)
 
-            # InformesPlan
+            # Informes Plan
             o_id = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
             o_id = [c for c in o_id if c in o.columns]
             ol = normalizar_meses(o, o_id)
@@ -956,7 +956,7 @@ with tabs[3]:
             ol = apply_filter(ol, "Objetivo", f_obje)   # ✅ CORREGIDO: era 'o1'
             comp_obj.append(ol)
 
-            # TareasPlan (opcional por año)
+            # Tareas Plan (opcional por año)
             if d is not None and not d.empty:
                 if "DEPARTAMENTO" not in d.columns and "Área" in d.columns:
                     d = d.copy()
@@ -986,7 +986,77 @@ with tabs[3]:
         comp_obj_long = pd.concat(comp_obj, ignore_index=True) if comp_obj else pd.DataFrame()
         comp_dept_long = pd.concat(comp_dept, ignore_index=True) if comp_dept else pd.DataFrame()
 
-        st.markdown("### 🎯 InformesPlan — % por color (VERDE/AMARILLO/ROJO/MORADO)")
+        # ── GAUGE CONSOLIDADO COMPARATIVO ──────────────────────────────────
+        st.markdown("### 🎯 Medidor Consolidado — Promedio de años comparados")
+
+        gauge_data = []
+        for y in compare_years:
+            prom_inf = float(comp_obj_long[comp_obj_long["AÑO"]==y]["valor"].mean() * 100) \
+                if not comp_obj_long.empty and y in comp_obj_long["AÑO"].values else np.nan
+            prom_tar = float(comp_dept_long[comp_dept_long["AÑO"]==y]["valor"].mean() * 100) \
+                if not comp_dept_long.empty and y in comp_dept_long["AÑO"].values else np.nan
+            prom_global = float(np.nanmean([v for v in [prom_inf, prom_tar] if not np.isnan(v)])) \
+                if any(not np.isnan(v) for v in [prom_inf, prom_tar]) else np.nan
+            gauge_data.append({"año": y, "inf": prom_inf, "tar": prom_tar, "global": prom_global})
+
+        # Promedio CONSOLIDADO de todos los años
+        vals_inf    = [d["inf"]    for d in gauge_data if not np.isnan(d["inf"])]
+        vals_tar    = [d["tar"]    for d in gauge_data if not np.isnan(d["tar"])]
+        vals_global = [d["global"] for d in gauge_data if not np.isnan(d["global"])]
+
+        prom_total_inf    = float(np.mean(vals_inf))    if vals_inf    else 0.0
+        prom_total_tar    = float(np.mean(vals_tar))    if vals_tar    else 0.0
+        prom_total_global = float(np.mean(vals_global)) if vals_global else 0.0
+
+        years_label = " + ".join(str(y) for y in sorted(compare_years))
+
+        # Una columna por año + 1 columna consolidada al final
+        gauge_cols = st.columns(len(compare_years) + 1)
+
+        for i, gd in enumerate(gauge_data):
+            fig_gy = build_gauge(
+                gd["global"],
+                f"{gd['año']} — Global",
+                delta_ref=90
+            )
+            fig_gy.add_annotation(
+                text=(
+                    f"Informes Plan: {gd['inf']:.1f}%  |  Tareas Plan: {gd['tar']:.1f}%"
+                    if not np.isnan(gd["tar"])
+                    else f"Solo Informes Plan: {gd['inf']:.1f}%"
+                ),
+                x=0.5, y=0.02, xref="paper", yref="paper",
+                showarrow=False, font=dict(size=10, color="#555555")
+            )
+            gauge_cols[i].plotly_chart(style_plotly(fig_gy, height=400), use_container_width=True)
+
+        # Gauge consolidado final
+        fig_consol = build_gauge(
+            prom_total_global,
+            f"Consolidado ({years_label})",
+            delta_ref=90
+        )
+        fig_consol.add_annotation(
+            text=(
+                f"Informes Plan: {prom_total_inf:.1f}%  |  Tareas Plan: {prom_total_tar:.1f}%"
+                if vals_tar
+                else f"Solo Informes Plan: {prom_total_inf:.1f}%"
+            ),
+            x=0.5, y=0.02, xref="paper", yref="paper",
+            showarrow=False, font=dict(size=10, color="#555555")
+        )
+        gauge_cols[-1].plotly_chart(style_plotly(fig_consol, height=400), use_container_width=True)
+
+        # KPIs resumen comparativo
+        k1, k2, k3 = st.columns(3)
+        k1.metric(f"Promedio Informes Plan ({years_label})", f"{prom_total_inf:.1f}%" if vals_inf else "—")
+        k2.metric(f"Promedio Tareas Plan ({years_label})",   f"{prom_total_tar:.1f}%"  if vals_tar  else "—")
+        k3.metric(f"Promedio Global Consolidado",            f"{prom_total_global:.1f}%" if vals_global else "—")
+
+        st.divider()
+        # ── FIN GAUGE CONSOLIDADO ───────────────────────────────────────────
+
+        st.markdown("### 🎯 Informes Plan — % por color (VERDE/AMARILLO/ROJO/MORADO)")
         if not comp_obj_long.empty:
             obj_mix = comp_obj_long.groupby(["AÑO","Estado"]).size().reset_index(name="conteo")
             obj_mix["%"] = obj_mix["conteo"] / obj_mix.groupby("AÑO")["conteo"].transform("sum") * 100
@@ -1002,11 +1072,11 @@ with tabs[3]:
                 text="%"
             )
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-            st.plotly_chart(style_plotly(fig, height=640, title="Comparativo InformesPlan — % por color"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=640, title="Comparativo Informes Plan — % por color"), use_container_width=True)
         else:
-            st.info("Sin datos de InformesPlan para comparativo con los filtros actuales.")
+            st.info("Sin datos de Informes Plan para comparativo con los filtros actuales.")
 
-        st.markdown("### 🏢 TareasPlan — % por color (VERDE/AMARILLO/ROJO/MORADO)")
+        st.markdown("### 🏢 Tareas Plan — % por color (VERDE/AMARILLO/ROJO/MORADO)")
         if not comp_dept_long.empty:
             dep_mix = comp_dept_long.groupby(["AÑO","Estado"]).size().reset_index(name="conteo")
             dep_mix["%"] = dep_mix["conteo"] / dep_mix.groupby("AÑO")["conteo"].transform("sum") * 100
@@ -1022,11 +1092,11 @@ with tabs[3]:
                 text="%"
             )
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-            st.plotly_chart(style_plotly(fig, height=640, title="Comparativo TareasPlan — % por color"), use_container_width=True)
+            st.plotly_chart(style_plotly(fig, height=640, title="Comparativo Tareas Plan — % por color"), use_container_width=True)
         else:
             st.info("No hay hojas AREAS en los años comparados o quedaron sin datos por filtros.")
 
-        st.markdown("### ✅ TareasPlan — % Realizada vs No realizada (por año)")
+        st.markdown("### ✅ Tareas Plan — % Realizada vs No realizada (por año)")
         if not comp_dept_long.empty and "¿Realizada?" in comp_dept_long.columns:
             ex = comp_dept_long.groupby(["AÑO","¿Realizada?"]).size().reset_index(name="conteo")
             ex["%"] = ex["conteo"] / ex.groupby("AÑO")["conteo"].transform("sum") * 100
@@ -1034,7 +1104,7 @@ with tabs[3]:
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
             st.plotly_chart(style_plotly(fig, height=600, title="Comparativo Ejecución (Realizada vs No realizada)"), use_container_width=True)
         else:
-            st.info("No hay datos de ejecución de TareasPlan comparables.")
+            st.info("No hay datos de ejecución de Tareas Plan comparables.")
 
         st.markdown("### 📈 Tendencia mensual comparativa (promedio %)")
         left, right = st.columns(2)
@@ -1045,9 +1115,9 @@ with tabs[3]:
                 t["cumplimiento_%"] = t["valor"] * 100
                 t = t.sort_values(["AÑO","MesNum"])
                 fig = px.line(t, x="Mes", y="cumplimiento_%", color="AÑO", markers=True)
-                st.plotly_chart(style_plotly(fig, height=600, title="InformesPlan — tendencia mensual promedio"), use_container_width=True)
+                st.plotly_chart(style_plotly(fig, height=600, title="Informes Plan — tendencia mensual promedio"), use_container_width=True)
             else:
-                st.info("Sin datos de InformesPlan para tendencia comparativa.")
+                st.info("Sin datos de Informes Plan para tendencia comparativa.")
 
         with right:
             if not comp_dept_long.empty:
@@ -1055,9 +1125,9 @@ with tabs[3]:
                 t["cumplimiento_%"] = t["valor"] * 100
                 t = t.sort_values(["AÑO","MesNum"])
                 fig = px.line(t, x="Mes", y="cumplimiento_%", color="AÑO", markers=True)
-                st.plotly_chart(style_plotly(fig, height=600, title="TareasPlan — tendencia mensual promedio"), use_container_width=True)
+                st.plotly_chart(style_plotly(fig, height=600, title="Tareas Plan — tendencia mensual promedio"), use_container_width=True)
             else:
-                st.info("Sin datos de TareasPlan para tendencia comparativa.")
+                st.info("Sin datos de Tareas Plan para tendencia comparativa.")
 
         st.markdown("### 🧩 Cobertura comparativa (elementos que existen por año)")
         c1, c2 = st.columns(2)
@@ -1074,7 +1144,7 @@ with tabs[3]:
                 cov_dep = comp_dept_long.groupby("AÑO")["DEPARTAMENTO"].nunique().reset_index(name="Deptos únicos")
                 fig = px.bar(cov_dep, x="AÑO", y="Deptos únicos", text="Deptos únicos")
                 fig.update_traces(textposition="outside")
-                st.plotly_chart(style_plotly(fig, height=520, title="Cobertura de deptos TareasPlan únicos por año"), use_container_width=True)
+                st.plotly_chart(style_plotly(fig, height=520, title="Cobertura de deptos Tareas Plan únicos por año"), use_container_width=True)
 
 # =====================================================
 # TAB 4: ALERTAS
@@ -1090,7 +1160,7 @@ with tabs[4]:
             nivel = "CRÍTICA" if r["estado_ejecutivo"] in ["CRÍTICO","NO SUBIDO"] else "NORMAL"
             alert_rows.append({
                 "Nivel": nivel,
-                "Tipo": "InformesPlan",
+                "Tipo": "Informes Plan",
                 "Nombre": r.get("Objetivo",""),
                 "Estado": r["estado_ejecutivo"],
                 "Cumplimiento %": float(r["cumplimiento_%"])
@@ -1102,7 +1172,7 @@ with tabs[4]:
             nivel = "CRÍTICA" if r["cumplimiento_%"] < 40 else "NORMAL"
             alert_rows.append({
                 "Nivel": nivel,
-                "Tipo": "TareasPlan (Departamento)",
+                "Tipo": "Tareas Plan (Departamento)",
                 "Nombre": r["DEPARTAMENTO"],
                 "Estado": "BAJO CUMPLIMIENTO",
                 "Cumplimiento %": float(r["cumplimiento_%"])
@@ -1143,7 +1213,7 @@ with tabs[5]:
             hole=0.55,
             color="estado_ejecutivo",
             color_discrete_map=COLOR_EJEC,
-            title=f"{year_data} — Estado Ejecutivo (InformesPlan)"
+            title=f"{year_data} — Estado Ejecutivo (Informes Plan)"
         )
 
         if not dept_res.empty:
@@ -1152,14 +1222,14 @@ with tabs[5]:
                 x="cumplimiento_%",
                 y="DEPARTAMENTO",
                 orientation="h",
-                title=f"{year_data} — Ranking crítico TareasPlan (Top 20 deptos)"
+                title=f"{year_data} — Ranking crítico Tareas Plan (Top 20 deptos)"
             )
         else:
             fig_rank_dept = px.bar(
-                pd.DataFrame({"Mensaje":["Sin datos de TareasPlan"]}),
+                pd.DataFrame({"Mensaje":["Sin datos de Tareas Plan"]}),
                 x="Mensaje",
                 y=[1],
-                title=f"{year_data} — TareasPlan"
+                title=f"{year_data} — Tareas Plan"
             )
 
         fig_estado_exec = style_plotly(fig_estado_exec, height=520)
@@ -1179,7 +1249,7 @@ with tabs[5]:
             dept_res_html = (
                 dept_res.head(200).to_html(index=False)
                 if not dept_res.empty
-                else "<p>Este año no tiene hoja AREAS o no hay datos de TareasPlan con los filtros.</p>"
+                else "<p>Este año no tiene hoja AREAS o no hay datos de Tareas Plan con los filtros.</p>"
             )
 
             return f"""
@@ -1208,7 +1278,7 @@ with tabs[5]:
   <div class="kpi"><b>Cumplidos</b><br>{k_ok}</div>
   <div class="kpi"><b>En Riesgo</b><br>{k_riesgo}</div>
   <div class="kpi"><b>Críticos/No Subido</b><br>{k_crit}</div>
-  <div class="kpi"><b>Cumpl. InformesPlan</b><br>{0 if pd.isna(k_avg_obj) else k_avg_obj:.1f}%</div>
+  <div class="kpi"><b>Cumpl. Informes Plan</b><br>{0 if pd.isna(k_avg_obj) else k_avg_obj:.1f}%</div>
   <div class="kpi"><b>Cumpl. Global</b><br>{0 if pd.isna(k_avg_global) else k_avg_global:.1f}%</div>
 </div>
 
@@ -1219,10 +1289,10 @@ with tabs[5]:
 <h2>Alertas</h2>
 {rep_alert_html}
 
-<h2>Tabla: InformesPlan (resumen)</h2>
+<h2>Tabla: Informes Plan (resumen)</h2>
 {obj_resumen.head(200).to_html(index=False)}
 
-<h2>Tabla: TareasPlan (departamentos resumen)</h2>
+<h2>Tabla: Tareas Plan (departamentos resumen)</h2>
 {dept_res_html}
 
 </body>
@@ -1244,22 +1314,23 @@ with tabs[5]:
 with tabs[6]:
     st.subheader("📋 Datos (auditoría)")
 
-    with st.expander("InformesPlan — Resumen"):
+    with st.expander("Informes Plan — Resumen"):
         st.dataframe(obj_resumen, use_container_width=True)
 
-    with st.expander("InformesPlan — Long"):
+    with st.expander("Informes Plan — Long"):
         st.dataframe(inf_long, use_container_width=True)
 
-    with st.expander("TareasPlan — Departamentos resumen"):
+    with st.expander("Tareas Plan — Departamentos resumen"):
         if not dept_res.empty:
             st.dataframe(dept_res, use_container_width=True)
         else:
-            st.info("Sin datos de TareasPlan para este año o con los filtros actuales.")
+            st.info("Sin datos de Tareas Plan para este año o con los filtros actuales.")
 
-    with st.expander("TareasPlan — Long"):
+    with st.expander("Tareas Plan — Long"):
         if not tar_long.empty:
             st.dataframe(tar_long, use_container_width=True)
         else:
-            st.info("Sin datos de TareasPlan para este año o con los filtros actuales.")
+            st.info("Sin datos de Tareas Plan para este año o con los filtros actuales.")
 
 st.caption("Fuente: Google Sheets · Dashboard Estratégico")
+
