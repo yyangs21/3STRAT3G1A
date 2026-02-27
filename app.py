@@ -309,7 +309,8 @@ def estado_exec(row) -> str:
 def calc_prom_inf(long_df: pd.DataFrame) -> float:
     """
     Calcula el % de cumplimiento de Informes Plan con la MISMA lógica que obj_resumen:
-    agrupa por objetivo, aplica frecuencia de medición, promedia.
+    - Si la fila tiene 'Promedio' → úsalo directamente
+    - Si está vacío               → calcula desde score/meses_esperados (colores)
     Así los gauges del comparativo cuadran exactamente con el gauge de Resumen.
     """
     if long_df is None or long_df.empty:
@@ -320,7 +321,11 @@ def calc_prom_inf(long_df: pd.DataFrame) -> float:
     if not grp:
         return float(long_df["valor"].mean() * 100)
 
-    res = long_df.groupby(grp, as_index=False).agg(score_total=("valor","sum"))
+    agg_dict = dict(score_total=("valor","sum"))
+    if "Promedio" in long_df.columns:
+        agg_dict["promedio_directo"] = ("Promedio","first")
+
+    res = long_df.groupby(grp, as_index=False).agg(**agg_dict)
 
     if "Frecuencia Medición" in res.columns:
         res["Frecuencia Medición"] = res["Frecuencia Medición"].astype(str).str.strip().str.upper()
@@ -328,7 +333,12 @@ def calc_prom_inf(long_df: pd.DataFrame) -> float:
     else:
         res["meses_esperados"] = 12
 
-    res["cumplimiento_%"] = (res["score_total"] / res["meses_esperados"]).clip(0, 1) * 100
+    cumpl_colores = (res["score_total"] / res["meses_esperados"]).clip(0, 1) * 100
+    if "promedio_directo" in res.columns:
+        res["cumplimiento_%"] = res["promedio_directo"].combine_first(cumpl_colores)
+    else:
+        res["cumplimiento_%"] = cumpl_colores
+
     return float(res["cumplimiento_%"].mean())
 
 
@@ -403,6 +413,22 @@ def load_year(year: int):
     for c in ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Frecuencia Medición"]:
         if c in df_inf.columns:
             df_inf[c] = normalize_text_series(df_inf[c])
+
+    # Normaliza columna Promedio: acepta "75%", "0.75" o "75" → float 75.0
+    if "Promedio" in df_inf.columns:
+        def _parse_promedio(val):
+            try:
+                s = str(val).strip().replace("%", "").replace(",", ".")
+                if s in ("", "nan", "None", "-"):
+                    return np.nan
+                f = float(s)
+                # Si viene como decimal tipo 0.75 lo convierte a 75.0
+                if 0 < f <= 1:
+                    f = f * 100
+                return round(f, 2)
+            except Exception:
+                return np.nan
+        df_inf["Promedio"] = df_inf["Promedio"].apply(_parse_promedio)
 
     # --- Tareas Plan: normalización ---
     if df_tar is not None:
@@ -523,7 +549,7 @@ st.sidebar.caption("✅ Si NO seleccionas filtros, se muestra TODO por default."
 # =====================================================
 # PROCESAMIENTO Informes Plan
 # =====================================================
-inf_id_cols = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
+inf_id_cols = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición","Promedio"]
 inf_id_cols = [c for c in inf_id_cols if c in df_inf.columns]
 
 inf_long = normalizar_meses(df_inf, inf_id_cols)
@@ -540,7 +566,19 @@ grp_cols = [c for c in ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Ti
 if inf_long.empty:
     obj_resumen = pd.DataFrame(columns=grp_cols + ["score_total","verdes","amarillos","rojos","morados","meses_reportados","meses_esperados","cumplimiento_%","estado_ejecutivo"])
 else:
-    obj_resumen = inf_long.groupby(grp_cols, as_index=False).agg(
+    # Lleva Promedio al long si existe en df_inf
+    has_promedio = "Promedio" in df_inf.columns
+    if has_promedio and "Promedio" not in inf_long.columns:
+        # Mapea Promedio desde df_inf usando Objetivo como llave
+        promedio_map = (
+            df_inf[["Objetivo","Promedio"]]
+            .dropna(subset=["Objetivo"])
+            .drop_duplicates("Objetivo")
+            .set_index("Objetivo")["Promedio"]
+        )
+        inf_long["Promedio"] = inf_long["Objetivo"].map(promedio_map) if "Objetivo" in inf_long.columns else np.nan
+
+    agg_dict = dict(
         score_total=("valor","sum"),
         verdes=("Estado", lambda x: (x=="VERDE").sum()),
         amarillos=("Estado", lambda x: (x=="AMARILLO").sum()),
@@ -548,6 +586,10 @@ else:
         morados=("Estado", lambda x: (x=="MORADO").sum()),
         meses_reportados=("Mes","count")
     )
+    if has_promedio and "Promedio" in inf_long.columns:
+        agg_dict["promedio_directo"] = ("Promedio", "first")
+
+    obj_resumen = inf_long.groupby(grp_cols, as_index=False).agg(**agg_dict)
 
     if "Frecuencia Medición" in obj_resumen.columns:
         obj_resumen["Frecuencia Medición"] = obj_resumen["Frecuencia Medición"].astype(str).str.strip().str.upper()
@@ -558,7 +600,15 @@ else:
     else:
         obj_resumen["meses_esperados"] = 12
 
-    obj_resumen["cumplimiento_%"] = (obj_resumen["score_total"] / obj_resumen["meses_esperados"]).clip(0,1) * 100
+    # cumplimiento_%:
+    #   → Si existe Promedio en esa fila → úsalo directamente
+    #   → Si está vacío                  → calcula desde colores (fallback)
+    cumpl_por_colores = (obj_resumen["score_total"] / obj_resumen["meses_esperados"]).clip(0, 1) * 100
+    if "promedio_directo" in obj_resumen.columns:
+        obj_resumen["cumplimiento_%"] = obj_resumen["promedio_directo"].combine_first(cumpl_por_colores)
+    else:
+        obj_resumen["cumplimiento_%"] = cumpl_por_colores
+
     obj_resumen["estado_ejecutivo"] = obj_resumen.apply(estado_exec, axis=1)
 
 # =====================================================
@@ -980,7 +1030,7 @@ with tabs[3]:
             o, d = load_year(y)
 
             # Informes Plan
-            o_id = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición"]
+            o_id = ["Tipo","Perspectiva","Eje","Departamento","Objetivo","Tipo Objetivo","Fecha Inicio","Fecha Fin","Frecuencia Medición","Promedio"]
             o_id = [c for c in o_id if c in o.columns]
             ol = normalizar_meses(o, o_id)
             ol["AÑO"] = y
